@@ -12,7 +12,7 @@
 
 A compiled Go daemon that indexes codebases and documents into a multi-tier search system, exposed through thin shell scripts that any agent can call as native tools.
 
-Written by a combination of human asking for stuff, Gemini designing stuff, Claude writing stuff, Gemini evaluating stuff, and the human playing the telephone game.
+> Written by a combination of human asking for stuff, Gemini designing stuff, Claude writing stuff, Gemini evaluating stuff, and the human playing the telephone game.
 
 ---
 
@@ -212,3 +212,14 @@ Go, Python, JavaScript/TypeScript. All other text-based files (Markdown, JSON, Y
 To wipe the database and start fresh: `task reset` kills the daemon, deletes `~/.cercle/cercle.db`, and rebuilds. Run `task run` afterwards.
 
 **No call graph or cross-reference index.** Structural search stores symbol declarations only. There is no way to query "where is this function called?" — that requires a cross-reference pass that Tree-sitter alone does not provide. Agents needing call-site information must fall back to lexical search.
+
+---
+
+## Acknowledgements
+
+- [SQLite FTS5](https://www.sqlite.org/fts5.html) — full-text search engine powering lexical search
+- [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) — incremental parsing library powering structural search
+- [GloVe](https://nlp.stanford.edu/projects/glove/) — pre-trained word vectors powering semantic search
+- [Nano Banana Pro 2](https://gemini.google.com) — the ensō icon
+- [Claude](https://claude.ai) — wrote most of the code; also found most of the bugs (in a separate session, using the tool on itself)
+- [Gemini](https://gemini.google.com) — designed the architecture and reviewed the code
