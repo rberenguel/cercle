@@ -28,13 +28,27 @@ Drew Breunig's [*The Potential of RLMs*](https://www.dbreunig.com/2026/02/09/the
 
 ---
 
+## This is not RAG
+
+Retrieval-Augmented Generation (RAG) and `cercle` both involve an external store that an LLM can query. The similarity ends there.
+
+In RAG, retrieval is something done *to* the model — the framework intercepts a query, fetches relevant documents, and injects them into the prompt. The model has no awareness of or control over this process. It cannot decide what to retrieve, when to retrieve it, or how much context to pull in. There is no write-back path: the index is built once by humans and queried passively forever. The model is a passenger.
+
+In the RLM model, retrieval is something the model *does*. The agent decides when context is needed, chooses which search mode is appropriate for the query, and explicitly manages what enters its context window. Critically, the agent writes back: when it finishes a subtask it distils its findings into a summary and stores it in the external pool. The next session — or the next agent — starts with that accumulated understanding already indexed and searchable. The pool becomes more useful over time precisely because agents annotate it.
+
+The other practical difference is scope. RAG pipelines are typically stateless and single-shot: retrieve, generate, discard. `cercle` is a persistent daemon shared across sessions, agents, and projects. Multiple agents can query it simultaneously, each scoped to their own namespace, and their collective write-backs compound.
+
+If RAG is a library, `cercle` is closer to a shared second brain.
+
+---
+
 ## Departing from the original REPL model
 
 The original RLM formulation proposes a Python REPL as the programmatic context pool. The agent loads data into Python variables, writes ad-hoc query code, and calls a function to trigger sub-LLM invocations. This works, but it carries a significant cost: the retrieval mechanism is *ephemeral*. Every session starts cold. The REPL holds no persistent state. Query logic is written anew each time, consuming tokens to express things that should be infrastructure.
 
 More critically, the REPL couples retrieval power directly to the agent's ability to write correct Python against an unfamiliar data structure. The agent must understand the storage schema, the query API, and the data layout — all at query time, under context pressure.
 
-**cercle replaces the REPL with a persistent, compiled daemon and a set of stateless CLI tools.**
+**`cercle` replaces the REPL with a persistent, compiled daemon and a set of stateless CLI tools.**
 
 The distinction matters for several reasons:
 
