@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# rlm-files [limit]
+# List all indexed file paths. Use at session start to orient yourself.
+# Scoped to CERCLE_SOURCE (defaults to $PWD). Unset to list across all sources.
+set -euo pipefail
+
+CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
+CERCLE_SOURCE="${CERCLE_SOURCE:-$PWD}"
+LIMIT="${1:-0}"
+
+SRC_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CERCLE_SOURCE")
+
+curl -sf "http://${CERCLE_ADDR}/files?source=${SRC_ENC}&limit=${LIMIT}"

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# rlm-delete-summary <id>
+# Delete a summary by its numeric ID (from rlm-list-summaries).
+# Also removes the underlying document, FTS5 entry, and embedding.
+set -euo pipefail
+
+CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
+ID="${1:?usage: rlm-delete-summary <id>}"
+
+curl -sf -X DELETE "http://${CERCLE_ADDR}/summary?id=${ID}"

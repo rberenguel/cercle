@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# rlm-submit-summary "<tags>" "<text>"
+# Write-back path: ingest an agent-generated summary into the context engine.
+# The summary is tagged with CERCLE_SOURCE so it is retrievable by the same agent.
+set -euo pipefail
+
+CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
+CERCLE_SOURCE="${CERCLE_SOURCE:-$PWD}"
+TAGS="${1:?usage: rlm-submit-summary \"<tags>\" \"<text>\"}"
+TEXT="${2:?usage: rlm-submit-summary \"<tags>\" \"<text>\"}"
+
+curl -sf -X POST "http://${CERCLE_ADDR}/summary" \
+  -H 'Content-Type: application/json' \
+  -d "$(python3 -c "import json,sys; print(json.dumps({'tags': sys.argv[1], 'text': sys.argv[2], 'source': sys.argv[3]}))" "$TAGS" "$TEXT" "$CERCLE_SOURCE")"

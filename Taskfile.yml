@@ -1,0 +1,88 @@
+version: '3'
+
+vars:
+  DAEMON_ADDR: "127.0.0.1:7770"
+  BIN: "./bin/cercled"
+  VERSION:
+    sh: cat VERSION
+
+tasks:
+  build:
+    desc: Build the daemon
+    cmds:
+      - mkdir -p bin
+      - go build -tags "sqlite_fts5" -ldflags "-X main.Version={{.VERSION}}" -o {{.BIN}} ./cmd/cercled
+      - codesign -s - {{.BIN}}
+    env:
+      CGO_ENABLED: "1"
+
+  run:
+    desc: Run the daemon (foreground)
+    deps: [build]
+    cmds:
+      - "{{.BIN}}"
+
+  index:
+    desc: "Index a directory (usage: task index DIR=./myproject)"
+    cmds:
+      - |
+        curl -s -X POST http://{{.DAEMON_ADDR}}/index \
+          -H 'Content-Type: application/json' \
+          -d "{\"path\": \"{{.DIR}}\"}" | jq .
+
+  search-lexical:
+    desc: "Lexical search (usage: task search-lexical Q=\"query\")"
+    cmds:
+      - ./rlm/scripts/rlm-search-lexical "{{.Q}}" | jq .
+
+  search-semantic:
+    desc: "Semantic search (usage: task search-semantic Q=\"concept\")"
+    cmds:
+      - ./rlm/scripts/rlm-search-semantic "{{.Q}}" | jq .
+
+  search-structural:
+    desc: "Structural search (usage: task search-structural Q=\"SymbolName\")"
+    cmds:
+      - ./rlm/scripts/rlm-code-structure "{{.Q}}" | jq .
+
+  submit-summary:
+    desc: "Submit a summary (usage: task submit-summary TAGS=\"t1,t2\" TEXT=\"...\")"
+    cmds:
+      - ./rlm/scripts/rlm-submit-summary "{{.TAGS}}" "{{.TEXT}}" | jq .
+
+  embed:
+    desc: Trigger embedding of all un-embedded documents
+    cmds:
+      - ./rlm/scripts/rlm-embed | jq .
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -tags "sqlite_fts5" ./...
+    env:
+      CGO_ENABLED: "1"
+
+  install:
+    desc: Copy rlm skill into Claude and Gemini skills directories, and install gemini-cli subagent definition
+    cmds:
+      - rm -rf ~/.claude/skills/rlm
+      - cp -r ./rlm ~/.claude/skills/rlm
+      - mkdir -p ~/.gemini/skills
+      - rm -rf ~/.gemini/skills/rlm
+      - cp -r ./rlm ~/.gemini/skills/rlm
+      - mkdir -p ~/.gemini/agents
+      - cp ./rlm/agent.md ~/.gemini/agents/rlm-worker.md
+      - echo "Installed to ~/.claude/skills/rlm, ~/.gemini/skills/rlm, ~/.gemini/agents/rlm-worker.md"
+
+  reset:
+    desc: "Nuclear wipe: kill daemon, delete database, rebuild (run 'task run' afterwards)"
+    cmds:
+      - lsof -ti:7770 | xargs kill 2>/dev/null || true
+      - task: build
+      - "{{.BIN}} -reset"
+      - echo "Database wiped and daemon rebuilt. Run 'task run' to restart."
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf bin

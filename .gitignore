@@ -1,0 +1,6 @@
+.DS_Store
+bin/
+*.db
+*.db-shm
+*.db-wal
+vectors.txt

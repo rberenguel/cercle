@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# rlm-search-semantic "<concept>" [limit] [min_similarity]
+# Vector similarity search using local GloVe word vectors (no external service).
+# Scoped to CERCLE_SOURCE (defaults to $PWD). Unset to search across all sources.
+# min_similarity: 0.0–1.0, default 0 (no filter). Use 0.5–0.6 to suppress noise.
+set -euo pipefail
+
+CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
+CERCLE_SOURCE="${CERCLE_SOURCE:-$PWD}"
+QUERY="${1:?usage: rlm-search-semantic \"<concept>\" [limit] [min_similarity]}"
+LIMIT="${2:-10}"
+MIN_SIM="${3:-0}"
+
+Q_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$QUERY")
+SRC_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CERCLE_SOURCE")
+
+curl -sf "http://${CERCLE_ADDR}/search/semantic?q=${Q_ENC}&source=${SRC_ENC}&limit=${LIMIT}&min_similarity=${MIN_SIM}"

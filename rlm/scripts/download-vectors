@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# download-vectors
+# Downloads pre-trained GloVe word vectors and installs them for cercled.
+#
+# Default: GloVe 6B, 100-dimensional (330 MB download, ~160 MB in memory).
+# Override with: VECTOR_DIM=300 ./download-vectors
+#
+# Alternatively, set VECTOR_URL to a FastText .vec URL — the format is identical.
+#
+# The vectors are placed at ~/.cercle/vectors.txt, which is cercled's default path.
+# Override the destination with: VECTOR_DEST=/your/path ./download-vectors
+set -euo pipefail
+
+DIM="${VECTOR_DIM:-100}"
+DEST="${VECTOR_DEST:-$HOME/.cercle/vectors.txt}"
+mkdir -p "$(dirname "$DEST")"
+TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR"' EXIT
+
+GLOVE_BASE="https://nlp.stanford.edu/data/glove.6B.zip"
+
+if [ -n "${VECTOR_URL:-}" ]; then
+  echo "Downloading custom vectors from $VECTOR_URL …"
+  curl -L --progress-bar -o "$DEST" "$VECTOR_URL"
+  echo "Installed to $DEST"
+  exit 0
+fi
+
+echo "Downloading GloVe 6B vectors (${DIM}d) from Stanford NLP …"
+echo "(Full zip is ~860 MB; only the ${DIM}d file will be extracted)"
+echo ""
+
+ZIP="$TMPDIR/glove.6B.zip"
+curl -L --progress-bar -o "$ZIP" "$GLOVE_BASE"
+
+echo ""
+echo "Extracting glove.6B.${DIM}d.txt …"
+unzip -p "$ZIP" "glove.6B.${DIM}d.txt" > "$DEST"
+
+LINES=$(wc -l < "$DEST" | tr -d ' ')
+echo "Installed $LINES word vectors (${DIM}d) to $DEST"
+echo ""
+echo "Restart cercled to enable semantic search:"
+echo "  task run"

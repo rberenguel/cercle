@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# rlm-search-lexical "<query>" [limit]
+# Full-text search over indexed files and summaries.
+# Scoped to CERCLE_SOURCE (defaults to $PWD). Unset to search across all sources.
+set -euo pipefail
+
+CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
+CERCLE_SOURCE="${CERCLE_SOURCE:-$PWD}"
+QUERY="${1:?usage: rlm-search-lexical \"<query>\" [limit]}"
+LIMIT="${2:-10}"
+
+Q_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$QUERY")
+SRC_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CERCLE_SOURCE")
+
+curl -sf "http://${CERCLE_ADDR}/search/lexical?q=${Q_ENC}&source=${SRC_ENC}&limit=${LIMIT}"

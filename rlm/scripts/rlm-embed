@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# rlm-embed
+# Trigger embedding of all un-embedded documents. Run after indexing a large
+# codebase and before relying on rlm-search-semantic.
+set -euo pipefail
+
+CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
+
+curl -sf -X POST "http://${CERCLE_ADDR}/embed"

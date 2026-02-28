@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# rlm-code-structure "<symbol>" [limit]
+# Structural search: find functions, classes, types by name (prefix match).
+# Scoped to CERCLE_SOURCE (defaults to $PWD). Unset to search across all sources.
+set -euo pipefail
+
+CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
+CERCLE_SOURCE="${CERCLE_SOURCE:-$PWD}"
+SYMBOL="${1:?usage: rlm-code-structure \"<symbol>\" [limit]}"
+LIMIT="${2:-20}"
+
+Q_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$SYMBOL")
+SRC_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CERCLE_SOURCE")
+
+curl -sf "http://${CERCLE_ADDR}/search/structural?q=${Q_ENC}&source=${SRC_ENC}&limit=${LIMIT}"
