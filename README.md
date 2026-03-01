@@ -1,3 +1,4 @@
+<div align="center">
 <img src="cercle.png" alt="cercle" width="160">
 
 # cercle
@@ -39,7 +40,7 @@ A compiled Go daemon that indexes codebases and documents into a multi-tier sear
 	numbering=true
 	autoSave=true
 	/vscode-markdown-toc-config -->
-<!-- /vscode-markdown-toc --><div align="center">
+<!-- /vscode-markdown-toc -->
 
 
 ##  1. <a name='Motivation'></a>Motivation
