@@ -67,7 +67,7 @@ The other practical difference is scope. RAG pipelines are typically stateless a
 
 If RAG is a library, `cercle` is closer to a shared second brain.
 
-This difference shows up empirically. In a cold-session reasoning test, a vanilla agent correctly named a SQL trigger when asked about it directly — then, in a separate reasoning question, claimed that trigger did not exist and built its entire explanation around that wrong premise. The RLM-equipped agent re-retrieved the trigger definition and made it the centrepiece of the correct answer. Knowing a fact and being able to reason with it under load are not the same thing. See [Evaluation](#evaluation).
+This difference shows up empirically. In a cold-session reasoning test, a vanilla agent correctly named a SQL trigger when asked about it directly — then, in a separate reasoning question, claimed that trigger did not exist and built its entire explanation around that wrong premise. The RLM-equipped agent re-retrieved the trigger definition and made it the centrepiece of the correct answer. Knowing a fact and being able to reason with it under load are not the same thing. See [Evaluation](#4-evaluation).
 
 ---
 
@@ -95,21 +95,21 @@ The macOS terminal *is* the REPL. It has always been.
 
 A manual eval over 20 codebase Q&A tasks on cercle's own source measured accuracy and context usage across two conditions: a vanilla agent answering from parametric knowledge only, and an RLM-equipped agent using the retrieval tools.
 
-| Condition | Score | Context used |
+| Condition | Score | Context left |
 |-----------|-------|--------------|
 | Vanilla | 19.5/20 | 74% |
 | RLM | 20/20 | 77% |
 
-3% more context, half a mistake fewer. The vanilla partial miss was on a question requiring two specific internal directory names — it recalled one correct pair but missed the expected `vendor` entry.
+3% less context remaining, half a mistake fewer. The vanilla partial miss was on a question requiring two specific internal directory names — it recalled one correct pair but missed the expected `vendor` entry.
 
 Answers are written as markdown bullet lists rather than JSON. Switching from a JSON answer format to markdown noticeably reduced context consumption during the answer-writing step.
 
 A second, harder question was run cold (fresh session, no prior context) to test cross-file reasoning: *"Walk through the full sequence of events that causes a chunk document to be re-embedded after its source file is modified on disk. Name each component involved."* This requires chaining facts across the indexer, the SQL trigger, and the embed worker — no single file contains the full answer.
 
-| Condition | Correct | Context used |
+| Condition | Correct | Context left |
 |-----------|---------|--------------|
-| Vanilla | ✗ | 83% available |
-| RLM | ✓ | 79% available |
+| Vanilla | ✗ | 83% |
+| RLM | ✓ | 79% |
 
 On raw context cost, vanilla appears to win. But its answer was substantively wrong: it claimed *"there is no automatic invalidation"* and missed the `documents_embedding_invalidate` trigger entirely — despite having named that trigger correctly in Q1. RLM retrieved the trigger definition in context and made it the centrepiece of its explanation. The 4% context premium was justified.
 
@@ -139,9 +139,9 @@ For source files with extractable symbols (Go, Python, JS), the indexer emits on
 
 A background embedding worker runs inside the daemon, processing un-embedded documents in bounded batches. Indexing does not block on embedding; the worker catches up asynchronously. No external service is required.
 
-###  5.3. <a name='TheCLISkills'></a>The CLI Skills
+###  5.3. <a name='TheCLISkills'></a>The CLI Scripts
 
-Stateless shell scripts. Each is a thin `curl` wrapper that hits the daemon and pipes raw JSON to stdout:
+Stateless shell scripts. Each is a thin `curl` wrapper that hits the daemon and pipes formatted markdown to stdout:
 
 | Script | Endpoint | Use when |
 |---|---|---|
@@ -150,6 +150,8 @@ Stateless shell scripts. Each is a thin `curl` wrapper that hits the daemon and 
 | `rlm-search-lexical` | `GET /search/lexical` | You know exact words or identifiers |
 | `rlm-search-semantic` | `GET /search/semantic` | You know the concept, not the name |
 | `rlm-code-structure` | `GET /search/structural` | You know the symbol name |
+| `rlm-read-symbol` | `GET /symbol` | Follow-up: fetch the full body of a named symbol |
+| `rlm-context` | `GET /context` | Follow-up: fetch N lines around a specific line |
 | `rlm-submit-summary` | `POST /summary` | You have finished a subtask |
 | `rlm-delete-summary` | `DELETE /summary` | A prior summary is now stale |
 | `rlm-delete-source` | `DELETE /source` | Purge all data for a namespace before re-indexing |
@@ -249,6 +251,8 @@ A minimal web UI is available at `http://127.0.0.1:7770/ui/` for verifying the d
 | `GET` | `/search/lexical` | FTS5 search. Params: `q`, `source`, `limit` |
 | `GET` | `/search/semantic` | Vector search. Params: `q`, `source`, `limit`, `min_similarity` |
 | `GET` | `/search/structural` | Symbol lookup. Params: `q`, `source`, `limit` |
+| `GET` | `/symbol` | Full symbol body. Params: `path`, `name`, `source` |
+| `GET` | `/context` | Lines around a position. Params: `path`, `line`, `n`, `source` |
 | `POST` | `/summary` | Ingest agent summary. Body: `{"tags": "...", "text": "...", "source": "..."}` |
 | `GET` | `/summaries` | List summaries newest-first. Params: `source`, `limit` |
 | `DELETE` | `/summary` | Delete a summary by id. Params: `id` |
