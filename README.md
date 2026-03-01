@@ -300,3 +300,4 @@ To wipe the database and start fresh: `task reset` kills the daemon, deletes `~/
 - [Nano Banana Pro 2](https://gemini.google.com) — the ensō icon
 - [Claude](https://claude.ai) — wrote most of the code; also found most of the bugs (in a separate session, using the tool on itself)
 - [Gemini](https://gemini.google.com) — designed the architecture and reviewed the code
+- [skill-validator](https://github.com/dacharyc/skill-validator) — linting tool for skill packages

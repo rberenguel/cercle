@@ -74,6 +74,12 @@ tasks:
       - cp ./rlm/agent.md ~/.gemini/agents/rlm-worker.md
       - echo "Installed to ~/.claude/skills/rlm, ~/.gemini/skills/rlm, ~/.gemini/agents/rlm-worker.md"
 
+  validate-skill:
+    desc: Validate the rlm skill structure (agent.md warning at root is expected and harmless)
+    cmds:
+      - "echo 'Note: the warning about unexpected file at root: agent.md is expected -- it lives here intentionally and is installed to ~/.gemini/agents/ by task install.'"
+      - skill-validator validate structure ./rlm || true
+
   reset:
     desc: "Nuclear wipe: kill daemon, delete database, rebuild (run 'task run' afterwards)"
     cmds:
