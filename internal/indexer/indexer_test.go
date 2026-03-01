@@ -20,7 +20,7 @@ func TestDetectLang(t *testing.T) {
 		{"main.go", "go"},
 		{"script.py", "python"},
 		{"app.js", "javascript"},
-		{"component.ts", "javascript"},
+		{"component.ts", "typescript"},
 		{"README.md", ""},
 		{"data.json", ""},
 		{"config.yaml", ""},

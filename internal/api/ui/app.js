@@ -23,6 +23,64 @@ function renderSnippet(text) {
   return text.replace(/\*\*(.+?)\*\*/g, '<mark>$1</mark>');
 }
 
+// ── Markdown renderer (summary body) ──────────────────────────────────────────
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function inlineMd(text) {
+  return escHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,     '<em>$1</em>')
+    .replace(/`([^`]+)`/g,     '<code>$1</code>');
+}
+
+function renderMarkdown(text) {
+  // Extract fenced code blocks so their contents are not processed.
+  const blocks = [];
+  const src = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const i = blocks.length;
+    const cls = lang ? ` class="lang-${lang}"` : '';
+    blocks.push(`<pre><code${cls}>${escHtml(code.trimEnd())}</code></pre>`);
+    return `\x00${i}\x00`;
+  });
+
+  const out  = [];
+  let inList = false;
+
+  for (const raw of src.split('\n')) {
+    // Restore code block placeholder (appears on its own line).
+    const ph = raw.trim().match(/^\x00(\d+)\x00$/);
+    if (ph) {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push(blocks[+ph[1]]);
+      continue;
+    }
+
+    const h3 = raw.match(/^### (.+)/);
+    if (h3) { if (inList) { out.push('</ul>'); inList = false; } out.push(`<h3>${inlineMd(h3[1])}</h3>`); continue; }
+    const h2 = raw.match(/^## (.+)/);
+    if (h2) { if (inList) { out.push('</ul>'); inList = false; } out.push(`<h2>${inlineMd(h2[1])}</h2>`); continue; }
+    const h1 = raw.match(/^# (.+)/);
+    if (h1) { if (inList) { out.push('</ul>'); inList = false; } out.push(`<h1>${inlineMd(h1[1])}</h1>`); continue; }
+
+    const li = raw.match(/^[-*] (.+)/);
+    if (li) { if (!inList) { out.push('<ul>'); inList = true; } out.push(`<li>${inlineMd(li[1])}</li>`); continue; }
+
+    if (raw.trim() === '') {
+      if (inList) { out.push('</ul>'); inList = false; }
+      continue; // blank line — gap handled by CSS margin
+    }
+
+    if (inList) { out.push('</ul>'); inList = false; }
+    out.push(`<p>${inlineMd(raw)}</p>`);
+  }
+
+  if (inList) out.push('</ul>');
+  return out.join('');
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 const api = {
@@ -344,21 +402,34 @@ async function loadSummaries() {
     }
 
     items.forEach(s => {
-      const date = new Date(s.created_at * 1000).toLocaleString();
-      const el   = document.createElement('div');
+      const date    = new Date(s.created_at * 1000).toLocaleString();
+      const bodyHtml = renderMarkdown(s.text || '');
+      const lineCount = (s.text || '').split('\n').length;
+      const collapsible = lineCount > 12;
+
+      const el = document.createElement('div');
       el.className = 'summary-card';
       el.innerHTML = `
         <div class="summary-header">
-          <span class="summary-tags">${s.tags || '(no tags)'}</span>
+          <span class="summary-tags">${escHtml(s.tags || '(no tags)')}</span>
           <span class="summary-date">${date}</span>
           <button class="delete-btn" data-id="${s.id}" title="delete">×</button>
         </div>
-        <div class="summary-preview">${s.preview}</div>
+        <div class="summary-body${collapsible ? ' collapsed' : ''}">${bodyHtml}</div>
+        ${collapsible ? '<button class="summary-toggle">▾ show all</button>' : ''}
       `;
       el.querySelector('.delete-btn').addEventListener('click', async () => {
         await api.deleteSummary(s.id);
         loadSummaries();
       });
+      if (collapsible) {
+        const body   = el.querySelector('.summary-body');
+        const toggle = el.querySelector('.summary-toggle');
+        toggle.addEventListener('click', () => {
+          const open = body.classList.toggle('collapsed');
+          toggle.textContent = open ? '▾ show all' : '▴ collapse';
+        });
+      }
       container.appendChild(el);
     });
   } catch (err) {

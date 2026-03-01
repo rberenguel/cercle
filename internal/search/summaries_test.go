@@ -68,8 +68,8 @@ func TestListSummaries_ReturnsSummaries(t *testing.T) {
 		if it.DocID == 0 {
 			t.Error("doc_id should be non-zero")
 		}
-		if it.Preview == "" {
-			t.Error("preview should be non-empty")
+		if it.Text == "" {
+			t.Error("text should be non-empty")
 		}
 	}
 }

@@ -1,7 +1,7 @@
 ---
 name: rlm
 description: Retrieval skill for searching indexed codebases and documents. Use when you need to find code, understand a symbol or function, search for a concept across a project, or store a summary for future retrieval. Triggers this with 'search the codebase", 'find where X is defined', 'what does X do', 'look up', 'find references to', 'store this summary'.
-allowed-tools: Bash(rlm-* *)
+allowed-tools: Bash
 ---
 
 # RLM Context Retrieval

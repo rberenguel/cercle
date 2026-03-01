@@ -6,14 +6,17 @@ import (
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	clang "github.com/smacker/go-tree-sitter/c"
 	"github.com/smacker/go-tree-sitter/golang"
 	"github.com/smacker/go-tree-sitter/javascript"
 	"github.com/smacker/go-tree-sitter/python"
+	"github.com/smacker/go-tree-sitter/rust"
+	"github.com/smacker/go-tree-sitter/typescript/typescript"
 )
 
 // Symbol is a structural element extracted from source code.
 type Symbol struct {
-	Kind      string // function, method, class, type_alias, …
+	Kind      string // function, method, class, type, …
 	Name      string
 	Signature string
 	StartLine uint32
@@ -24,6 +27,9 @@ var parsers = map[string]*sitter.Language{
 	"go":         golang.GetLanguage(),
 	"python":     python.GetLanguage(),
 	"javascript": javascript.GetLanguage(),
+	"typescript": typescript.GetLanguage(),
+	"rust":       rust.GetLanguage(),
+	"c":          clang.GetLanguage(),
 }
 
 // extractSymbols parses source with the appropriate Tree-sitter grammar
@@ -61,6 +67,12 @@ func collectSymbols(node *sitter.Node, src []byte, lang string, syms *[]Symbol) 
 		sym = extractPythonSymbol(node, src, kind)
 	case "javascript":
 		sym = extractJSSymbol(node, src, kind)
+	case "typescript":
+		sym = extractTSSymbol(node, src, kind)
+	case "rust":
+		sym = extractRustSymbol(node, src, kind)
+	case "c":
+		sym = extractCSymbol(node, src, kind)
 	}
 
 	if sym != nil {
@@ -201,6 +213,103 @@ func extractJSSymbol(node *sitter.Node, src []byte, kind string) *Symbol {
 				StartLine: node.StartPoint().Row + 1,
 				EndLine:   node.EndPoint().Row + 1,
 			}
+		}
+	}
+	return nil
+}
+
+// extractTSSymbol handles TypeScript: all JS patterns plus interface, type alias, enum.
+func extractTSSymbol(node *sitter.Node, src []byte, kind string) *Symbol {
+	switch kind {
+	case "interface_declaration", "enum_declaration":
+		name := childByField(node, "name")
+		if name == nil {
+			return nil
+		}
+		return &Symbol{
+			Kind:      "type",
+			Name:      name.Content(src),
+			Signature: firstLine(node.Content(src)),
+			StartLine: node.StartPoint().Row + 1,
+			EndLine:   node.EndPoint().Row + 1,
+		}
+	case "type_alias_declaration":
+		name := childByField(node, "name")
+		if name == nil {
+			return nil
+		}
+		return &Symbol{
+			Kind:      "type",
+			Name:      name.Content(src),
+			Signature: firstLine(node.Content(src)),
+			StartLine: node.StartPoint().Row + 1,
+			EndLine:   node.EndPoint().Row + 1,
+		}
+	}
+	// Fall through to JS patterns for functions, classes, methods.
+	return extractJSSymbol(node, src, kind)
+}
+
+// extractRustSymbol handles Rust: functions (including impl methods), structs, enums, traits.
+func extractRustSymbol(node *sitter.Node, src []byte, kind string) *Symbol {
+	switch kind {
+	case "function_item":
+		name := childByField(node, "name")
+		if name == nil {
+			return nil
+		}
+		return &Symbol{
+			Kind:      "function",
+			Name:      name.Content(src),
+			Signature: firstLine(node.Content(src)),
+			StartLine: node.StartPoint().Row + 1,
+			EndLine:   node.EndPoint().Row + 1,
+		}
+	case "struct_item", "enum_item", "trait_item":
+		name := childByField(node, "name")
+		if name == nil {
+			return nil
+		}
+		return &Symbol{
+			Kind:      "type",
+			Name:      name.Content(src),
+			Signature: firstLine(node.Content(src)),
+			StartLine: node.StartPoint().Row + 1,
+			EndLine:   node.EndPoint().Row + 1,
+		}
+	}
+	return nil
+}
+
+// extractCSymbol handles C: function definitions.
+// C declarators can be nested: function_definition → (pointer_declarator)* → function_declarator → name.
+func extractCSymbol(node *sitter.Node, src []byte, kind string) *Symbol {
+	if kind != "function_definition" {
+		return nil
+	}
+	name := cFunctionName(node)
+	if name == nil {
+		return nil
+	}
+	return &Symbol{
+		Kind:      "function",
+		Name:      name.Content(src),
+		Signature: firstLine(node.Content(src)),
+		StartLine: node.StartPoint().Row + 1,
+		EndLine:   node.EndPoint().Row + 1,
+	}
+}
+
+func cFunctionName(node *sitter.Node) *sitter.Node {
+	decl := childByField(node, "declarator")
+	for decl != nil {
+		switch decl.Type() {
+		case "function_declarator":
+			return childByField(decl, "declarator")
+		case "pointer_declarator":
+			decl = childByField(decl, "declarator")
+		default:
+			return nil
 		}
 	}
 	return nil

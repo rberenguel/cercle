@@ -438,12 +438,67 @@ button:active { background: var(--base03); }
 }
 .delete-btn:hover { color: var(--red); border-color: transparent; background: none; }
 
-.summary-preview {
-  color: var(--base00);
+.summary-body {
+  color: var(--base0);
   font-size: 12px;
-  line-height: 1.45;
-  white-space: pre-wrap;
+  line-height: 1.6;
+  overflow: hidden;
 }
+.summary-body.collapsed {
+  max-height: 12em;
+  -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
+}
+
+.summary-body h1, .summary-body h2, .summary-body h3 {
+  color: var(--base1);
+  font-weight: 700;
+  margin: 0.7em 0 0.2em;
+  line-height: 1.3;
+}
+.summary-body h1 { font-size: 14px; }
+.summary-body h2 { font-size: 13px; }
+.summary-body h3 { font-size: 12px; color: var(--base0); }
+
+.summary-body p  { margin: 0.25em 0; }
+.summary-body ul { margin: 0.25em 0 0.25em 1.2em; padding: 0; }
+.summary-body li { margin: 0.1em 0; }
+
+.summary-body strong { color: var(--base1); font-weight: 700; }
+.summary-body em     { color: var(--yellow); font-style: normal; }
+
+.summary-body code {
+  color: var(--cyan);
+  background: var(--base03);
+  padding: 0 3px;
+  font-size: 11px;
+}
+.summary-body pre {
+  background: var(--base03);
+  border-left: 2px solid var(--base02);
+  padding: 8px 10px;
+  margin: 6px 0;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.summary-body pre code {
+  background: none;
+  padding: 0;
+  color: var(--base0);
+}
+
+.summary-toggle {
+  background: none;
+  border: none;
+  color: var(--base01);
+  font-size: 11px;
+  padding: 2px 0 0;
+  cursor: pointer;
+  display: block;
+  margin-top: 4px;
+}
+.summary-toggle:hover { color: var(--base0); border-color: transparent; background: none; }
 
 /* ── Index ─────────────────────────────────────────────────── */
 .index-toolbar {

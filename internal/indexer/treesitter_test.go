@@ -174,8 +174,113 @@ class Game {
 	}
 }
 
+func TestExtractRustSymbols(t *testing.T) {
+	src := `
+fn greet(name: &str) -> String { name.to_string() }
+
+struct Point { x: f64, y: f64 }
+
+enum Color { Red, Green, Blue }
+
+trait Shape { fn area(&self) -> f64; }
+
+impl Point {
+    fn distance(&self, other: &Point) -> f64 { 0.0 }
+}
+`
+	syms, err := extractSymbols([]byte(src), "rust")
+	if err != nil {
+		t.Fatalf("extractSymbols: %v", err)
+	}
+
+	byName := make(map[string]string)
+	for _, s := range syms {
+		byName[s.Name] = s.Kind
+	}
+
+	want := map[string]string{
+		"greet":    "function",
+		"Point":    "type",
+		"Color":    "type",
+		"Shape":    "type",
+		"distance": "function",
+	}
+	for name, kind := range want {
+		if byName[name] != kind {
+			t.Errorf("want %s=%s, got %q (all syms: %+v)", name, kind, byName[name], syms)
+		}
+	}
+}
+
+func TestExtractTSSymbols(t *testing.T) {
+	src := `
+interface Animal { name: string; }
+
+type ID = string | number;
+
+enum Direction { Up, Down }
+
+function move(d: Direction): void {}
+
+class Dog implements Animal { name = "dog"; bark() {} }
+`
+	syms, err := extractSymbols([]byte(src), "typescript")
+	if err != nil {
+		t.Fatalf("extractSymbols: %v", err)
+	}
+
+	byName := make(map[string]string)
+	for _, s := range syms {
+		byName[s.Name] = s.Kind
+	}
+
+	want := map[string]string{
+		"Animal":    "type",
+		"ID":        "type",
+		"Direction": "type",
+		"move":      "function",
+		"Dog":       "class",
+		"bark":      "method",
+	}
+	for name, kind := range want {
+		if byName[name] != kind {
+			t.Errorf("want %s=%s, got %q (all syms: %+v)", name, kind, byName[name], syms)
+		}
+	}
+}
+
+func TestExtractCSymbols(t *testing.T) {
+	src := `
+int add(int a, int b) { return a + b; }
+
+void *alloc(size_t n) { return malloc(n); }
+
+static int helper(void) { return 0; }
+`
+	syms, err := extractSymbols([]byte(src), "c")
+	if err != nil {
+		t.Fatalf("extractSymbols: %v", err)
+	}
+
+	byName := make(map[string]string)
+	for _, s := range syms {
+		byName[s.Name] = s.Kind
+	}
+
+	want := map[string]string{
+		"add":    "function",
+		"alloc":  "function",
+		"helper": "function",
+	}
+	for name, kind := range want {
+		if byName[name] != kind {
+			t.Errorf("want %s=%s, got %q (all syms: %+v)", name, kind, byName[name], syms)
+		}
+	}
+}
+
 func TestExtractUnsupportedLang(t *testing.T) {
-	syms, err := extractSymbols([]byte(`fn main() {}`), "rust")
+	syms, err := extractSymbols([]byte(`SELECT 1`), "sql")
 	if err != nil {
 		t.Fatal(err)
 	}

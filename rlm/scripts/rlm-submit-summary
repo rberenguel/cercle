@@ -9,7 +9,12 @@ CERCLE_SOURCE="${CERCLE_SOURCE:-$PWD}"
 TAGS="${1:?usage: rlm-submit-summary \"<tags>\" \"<text>\"}"
 TEXT="${2:?usage: rlm-submit-summary \"<tags>\" \"<text>\"}"
 
+BODY=$(python3 -c "
+import json, sys
+print(json.dumps({'tags': sys.argv[1], 'text': sys.argv[2], 'source': sys.argv[3]}))
+" "$TAGS" "$TEXT" "$CERCLE_SOURCE")
+
 curl -s --fail-with-body -X POST "http://${CERCLE_ADDR}/summary" \
   -H 'Content-Type: application/json' \
-  -d "$(python3 -c "import json,sys; print(json.dumps({'tags': sys.argv[1], 'text': sys.argv[2], 'source': sys.argv[3]}))" "$TAGS" "$TEXT" "$CERCLE_SOURCE")" \
+  -d "$BODY" \
   | python3 "$(dirname "$0")/rlm-format" submit-summary

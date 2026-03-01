@@ -247,7 +247,7 @@ func detectLang(name string) string {
 	ext := strings.ToLower(filepath.Ext(name))
 	langs := map[string]string{
 		".go": "go", ".py": "python", ".js": "javascript",
-		".ts": "javascript", ".rs": "rust", ".c": "c", ".h": "c",
+		".ts": "typescript", ".rs": "rust", ".c": "c", ".h": "c",
 	}
 	return langs[ext]
 }

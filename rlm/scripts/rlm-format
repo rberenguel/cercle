@@ -80,7 +80,7 @@ elif mode == 'summaries':
         print('(no summaries)')
     else:
         for r in data:
-            preview = (r.get('preview') or '').replace('\n', ' ')[:120]
+            preview = (r.get('text') or r.get('preview') or '').replace('\n', ' ')[:120]
             print(f"[{r['id']}] {r.get('tags','—')}: {preview}")
 
 elif mode == 'embed':

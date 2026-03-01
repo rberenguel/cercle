@@ -12,7 +12,7 @@ type SummaryItem struct {
 	Tags      string `json:"tags"`
 	CreatedAt int64  `json:"created_at"`
 	Source    string `json:"source"`
-	Preview   string `json:"preview"` // first 300 chars of the summary text
+	Text      string `json:"text"`
 }
 
 // ListSummaries returns summaries in reverse chronological order.
@@ -29,7 +29,7 @@ func ListSummaries(ctx context.Context, db *sql.DB, source string, limit int) ([
 	if source != "" {
 		rows, err = db.QueryContext(ctx, `
 			SELECT s.id, s.doc_id, COALESCE(s.tags,''), s.created_at,
-			       COALESCE(d.source,''), substr(d.content, 1, 300)
+			       COALESCE(d.source,''), d.content
 			FROM summaries s
 			JOIN documents d ON d.id = s.doc_id
 			WHERE d.source = ?
@@ -39,7 +39,7 @@ func ListSummaries(ctx context.Context, db *sql.DB, source string, limit int) ([
 	} else {
 		rows, err = db.QueryContext(ctx, `
 			SELECT s.id, s.doc_id, COALESCE(s.tags,''), s.created_at,
-			       COALESCE(d.source,''), substr(d.content, 1, 300)
+			       COALESCE(d.source,''), d.content
 			FROM summaries s
 			JOIN documents d ON d.id = s.doc_id
 			ORDER BY s.created_at DESC
@@ -54,7 +54,7 @@ func ListSummaries(ctx context.Context, db *sql.DB, source string, limit int) ([
 	items := make([]SummaryItem, 0)
 	for rows.Next() {
 		var it SummaryItem
-		if err := rows.Scan(&it.ID, &it.DocID, &it.Tags, &it.CreatedAt, &it.Source, &it.Preview); err != nil {
+		if err := rows.Scan(&it.ID, &it.DocID, &it.Tags, &it.CreatedAt, &it.Source, &it.Text); err != nil {
 			return nil, err
 		}
 		items = append(items, it)
