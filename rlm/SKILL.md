@@ -1,106 +1,41 @@
 ---
 name: rlm
-description: Retrieval skill for searching indexed codebases and documents. Use when you need to find code, understand a symbol or function, search for a concept across a project, or store a summary for future retrieval. Triggers on: "search the codebase", "find where X is defined", "what does X do", "look up", "find references to", "store this summary", "remember this for later".
+description: Retrieval skill for searching indexed codebases and documents. Use when you need to find code, understand a symbol or function, search for a concept across a project, or store a summary for future retrieval. Triggers on: "search the codebase", "find where X is defined", "what does X do", "look up", "find references to", "store this summary".
 ---
 
 # RLM Context Retrieval
 
-The `cercled` daemon runs locally at `127.0.0.1:7770` and exposes lexical, structural, and semantic search, a file index, and a summary write-back path. All scripts output JSON to stdout.
+`cercled` at `127.0.0.1:7770`. Scripts output markdown (formatted by `rlm-format`). All scoped to `CERCLE_SOURCE` (defaults to `$PWD`).
 
-## Workflow
+## Tools
 
-### 1. Find exact text or keywords → lexical search
-
-```bash
-./rlm/scripts/rlm-search-lexical "query string" [limit]
-```
-
-Use for: known identifiers, error messages, specific strings, log fragments.
-
-### 2. Find code by name → structural search
+Available in the `script` folder of this skill.
 
 ```bash
-./rlm/scripts/rlm-code-structure "SymbolName" [limit]
+rlm-code-structure "fragment" [n]    # Go/Py/JS functions, methods, types — NOT constants. Exact name ranks first. Preview: 20 lines.
+rlm-search-semantic "concept" 2 0.5 # Always pass limit=2 min_similarity=0.5. Returns 800-char snippet. Scores are not quality rankings — read the snippet.
+rlm-search-lexical "token" [n]       # Exact verbatim tokens only. ANDs all tokens. Returns {results, query} — check query to see what was searched.
+rlm-read-symbol <path> <symbol>      # Full body of a symbol from a prior structural result.
+rlm-context <path> <line> [n]        # n lines around a line number from any result. Use for constants and file-scope content.
+rlm-files ["*/glob"] [n]             # File list. Use when orienting in an unfamiliar codebase.
+rlm-list-summaries [n]               # Prior agent findings. Use at session start when context is cold.
+rlm-submit-summary "tags" "text"     # Persist findings. Always do after non-trivial research.
+rlm-embed                            # Wake embed worker after fresh indexing.
+rlm-delete-summary <id>             # Remove a stale summary.
 ```
 
-Use for: function names, class names, type names. Returns file path, kind, signature, and line range. Always prefer this over lexical when looking up a named symbol.
+## Rules
 
-### 3. Trigger embedding after fresh indexing → embed
+1. **Structural first** when you can guess any fragment of a function, method, or type name. Exact names rank first.
+2. **Semantic** for everything else — concepts, "what is X named", "how does Y work". Always `limit=2 min_similarity=0.5`.
+3. **Lexical** only for strings you know appear verbatim in source. Empty result → switch to semantic immediately, no retry.
+4. **rlm-read-symbol** when a structural preview cuts off before the answer.
+5. **rlm-context** when you have a file path and line number but need surrounding content (e.g. constants).
 
-```bash
-./rlm/scripts/rlm-embed
-```
+## Errors
 
-Run this after `POST /index` on a new codebase and before using semantic search. The daemon embeds asynchronously; this call wakes the worker immediately. The response includes `pending_embed` so you know how many documents are still queued.
+- **Daemon not running**: scripts fail with connection error. Run `task run`.
+- **Empty structural results**: symbol not in Go/Py/JS or named differently. Use semantic.
+- **Semantic error**: vectors not loaded. Run `./rlm/scripts/download-vectors`, restart daemon. Use lexical meanwhile.
 
-### 4. Find by concept → semantic search
-
-```bash
-./rlm/scripts/rlm-search-semantic "concept description" [limit]
-```
-
-Use for: vague or conceptual queries where you don't know the exact name. Uses locally loaded GloVe or FastText word vectors — no external service required. Falls back gracefully if vectors are not installed (run `download-vectors` once).
-
-### 5. Browse indexed files → file list
-
-```bash
-./rlm/scripts/rlm-files [limit]
-```
-
-Use at the start of any session to orient yourself. Returns all indexed file paths. Call this first — knowing the file tree makes all subsequent queries smarter.
-
-### 6. Store a summary → write-back
-
-```bash
-./rlm/scripts/rlm-submit-summary "tag1,tag2" "summary text"
-```
-
-Use after completing a research subtask to persist findings. The summary becomes immediately searchable via both lexical and semantic search in future turns. This is the RLM feedback loop.
-
-**ALWAYS submit a summary at the end of any non-trivial investigation.** A summary you write now is instantly searchable in the next session. If you skip this step, the next agent starts cold. Don't skip it.
-
-### 7. Review stored summaries → list summaries
-
-```bash
-./rlm/scripts/rlm-list-summaries [limit]
-```
-
-Lists all summaries newest-first with tags, preview, and source. Use at the start of a session after `rlm-files` to recover prior findings without re-searching.
-
-### 8. Delete a stale summary → deprecate
-
-```bash
-./rlm/scripts/rlm-delete-summary <id>
-```
-
-Removes a summary and its embeddings. Use when a summary describes code that has since changed. The `id` comes from `rlm-list-summaries`. Keeping stale summaries causes context rot — prune them when you know they are outdated.
-
-## Decision tree
-
-```
-Starting a new session?
-├── rlm-files (orient yourself before querying)
-└── rlm-list-summaries (recover prior findings)
-
-Just indexed a new codebase?
-└── Run rlm-embed first, then wait or poll pending_embed before semantic search
-
-Need to find something?
-├── Know the exact symbol name? → rlm-code-structure
-├── Know exact words it contains? → rlm-search-lexical
-└── Know the concept but not the name? → rlm-search-semantic (use min_similarity=0.6 to cut noise)
-
-Finished a research subtask?
-└── ALWAYS → rlm-submit-summary (never skip this)
-
-Summary is about code that has since changed?
-└── rlm-delete-summary <id>  (prune stale summaries to prevent context rot)
-```
-
-## Error handling
-
-- **Daemon not running**: scripts will fail with a curl error. Inform the user that `cercled` must be started (`task run` from the cercle directory).
-- **No results**: broaden the query or try a different search mode.
-- **Semantic search fails**: word vectors are not loaded. Run `./rlm/scripts/download-vectors` once, then restart the daemon. Fall back to lexical search in the meantime.
-
-For endpoint details and JSON schemas, see [REFERENCE.md](REFERENCE.md).
+For endpoint schemas: [REFERENCE.md](REFERENCE.md).

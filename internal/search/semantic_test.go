@@ -53,6 +53,9 @@ func TestSemantic_FindsMatch(t *testing.T) {
 	if results[0].Path != "/a/player.js" {
 		t.Errorf("want /a/player.js first, got %q (similarity=%.3f)", results[0].Path, results[0].Similarity)
 	}
+	if results[0].Snippet == "" {
+		t.Error("want non-empty snippet in semantic result")
+	}
 }
 
 func TestSemantic_MinSimilarityFiltersNoise(t *testing.T) {

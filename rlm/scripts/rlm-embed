@@ -6,4 +6,5 @@ set -euo pipefail
 
 CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
 
-curl -sf -X POST "http://${CERCLE_ADDR}/embed"
+curl -s --fail-with-body -X POST "http://${CERCLE_ADDR}/embed" \
+  | python3 "$(dirname "$0")/rlm-format" embed

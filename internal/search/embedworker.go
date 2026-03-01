@@ -57,14 +57,18 @@ func (w *EmbedWorker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			w.process(ctx)
+			for w.process(ctx) {
+			}
 		case <-w.trigger:
-			w.process(ctx)
+			for w.process(ctx) {
+			}
 		}
 	}
 }
 
-func (w *EmbedWorker) process(ctx context.Context) {
+// process embeds one batch of up to 100 pending documents.
+// Returns true if work was done (caller should keep looping), false when queue is empty.
+func (w *EmbedWorker) process(ctx context.Context) bool {
 	rows, err := w.db.QueryContext(ctx, `
 		SELECT d.id, d.content FROM documents d
 		WHERE NOT EXISTS (
@@ -80,7 +84,7 @@ func (w *EmbedWorker) process(ctx context.Context) {
 	`, ModelID(w.emb))
 	if err != nil {
 		log.Printf("embedworker: query pending: %v", err)
-		return
+		return false
 	}
 
 	type doc struct {
@@ -99,7 +103,7 @@ func (w *EmbedWorker) process(ctx context.Context) {
 	rows.Close()
 
 	if len(docs) == 0 {
-		return
+		return false
 	}
 
 	log.Printf("embedworker: embedding %d document(s)", len(docs))
@@ -120,4 +124,5 @@ func (w *EmbedWorker) process(ctx context.Context) {
 	}
 	wg.Wait()
 	log.Printf("embedworker: batch done")
+	return true
 }

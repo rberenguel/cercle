@@ -12,7 +12,7 @@ tasks:
     cmds:
       - mkdir -p bin
       - go build -tags "sqlite_fts5" -ldflags "-X main.Version={{.VERSION}}" -o {{.BIN}} ./cmd/cercled
-      - codesign -s - {{.BIN}}
+      - codesign -s - {{.BIN}} || true
     env:
       CGO_ENABLED: "1"
 

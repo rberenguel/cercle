@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # rlm-search-lexical "<query>" [limit]
-# Full-text search over indexed files and summaries.
+# Full-text search over indexed files and summaries (SQLite FTS5, porter stemmer).
 # Scoped to CERCLE_SOURCE (defaults to $PWD). Unset to search across all sources.
+#
+# Queries are sanitized by default: special characters (., -, *, ", etc.) are
+# replaced with spaces so natural input like "os.Exit" or "command-line" works
+# safely. All remaining tokens are AND-ed together.
+#
+# For conceptual / synonym queries, use rlm-search-semantic instead.
 set -euo pipefail
 
 CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
@@ -12,4 +18,5 @@ LIMIT="${2:-10}"
 Q_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$QUERY")
 SRC_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CERCLE_SOURCE")
 
-curl -sf "http://${CERCLE_ADDR}/search/lexical?q=${Q_ENC}&source=${SRC_ENC}&limit=${LIMIT}"
+curl -s --fail-with-body "http://${CERCLE_ADDR}/search/lexical?q=${Q_ENC}&source=${SRC_ENC}&limit=${LIMIT}" \
+  | python3 "$(dirname "$0")/rlm-format" lexical

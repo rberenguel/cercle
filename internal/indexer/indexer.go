@@ -31,16 +31,29 @@ func IndexDir(ctx context.Context, db *sql.DB, root, source string) (*Result, er
 		source = abs
 	}
 
+	il, err := LoadIgnoreFiles(abs)
+	if err != nil {
+		return nil, fmt.Errorf("load ignore files: %w", err)
+	}
+
 	res := &Result{}
 	err = filepath.WalkDir(abs, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			res.Errors = append(res.Errors, fmt.Sprintf("walk %s: %v", path, err))
 			return nil
 		}
+		rel, _ := filepath.Rel(abs, path)
 		if d.IsDir() {
 			if shouldSkipDir(d.Name()) {
 				return filepath.SkipDir
 			}
+			if il.ShouldIgnore(rel, true) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if il.ShouldIgnore(rel, false) {
+			res.Skipped++
 			return nil
 		}
 		if !isSupportedFile(d.Name()) {
@@ -158,10 +171,9 @@ func extractChunkContent(content []byte, sym Symbol) string {
 }
 
 func upsertDocument(ctx context.Context, db *sql.DB, path, kind, content, lang, source string, parentID int64) (int64, error) {
-	var res sql.Result
 	var err error
 	if parentID != 0 {
-		res, err = db.ExecContext(ctx, `
+		_, err = db.ExecContext(ctx, `
 			INSERT INTO documents (path, kind, content, lang, source, parent_id)
 			VALUES (?, ?, ?, ?, ?, ?)
 			ON CONFLICT(path) DO UPDATE SET
@@ -172,7 +184,7 @@ func upsertDocument(ctx context.Context, db *sql.DB, path, kind, content, lang, 
 				indexed_at = unixepoch()
 		`, path, kind, content, nullableString(lang), nullableString(source), parentID)
 	} else {
-		res, err = db.ExecContext(ctx, `
+		_, err = db.ExecContext(ctx, `
 			INSERT INTO documents (path, kind, content, lang, source)
 			VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(path) DO UPDATE SET
@@ -186,11 +198,12 @@ func upsertDocument(ctx context.Context, db *sql.DB, path, kind, content, lang, 
 		return 0, err
 	}
 
-	id, err := res.LastInsertId()
-	if err != nil || id == 0 {
-		// ON CONFLICT branch: fetch existing id
-		err = db.QueryRowContext(ctx, `SELECT id FROM documents WHERE path = ?`, path).Scan(&id)
-	}
+	// Always SELECT the id rather than relying on LastInsertId(): when the
+	// upsert takes the ON CONFLICT DO UPDATE path (an SQL UPDATE, not INSERT),
+	// sqlite3_last_insert_rowid() is not updated in older SQLite versions and
+	// returns a stale value that can point to a deleted chunk, causing FK errors.
+	var id int64
+	err = db.QueryRowContext(ctx, `SELECT id FROM documents WHERE path = ?`, path).Scan(&id)
 	return id, err
 }
 
@@ -215,6 +228,7 @@ func shouldSkipDir(name string) bool {
 	skip := map[string]bool{
 		".git": true, "node_modules": true, "vendor": true,
 		".venv": true, "__pycache__": true, "dist": true, "build": true,
+		".claude": true, ".gemini": true,
 	}
 	return skip[name]
 }

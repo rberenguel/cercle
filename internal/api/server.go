@@ -2,12 +2,17 @@ package api
 
 import (
 	"database/sql"
+	"embed"
 	"fmt"
+	"io/fs"
 	"net/http"
 
 	"github.com/ruben/cercle/internal/embedder"
 	"github.com/ruben/cercle/internal/search"
 )
+
+//go:embed ui
+var uiFiles embed.FS
 
 // Server is the HTTP daemon.
 type Server struct {
@@ -32,11 +37,17 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) routes() {
+	uiContent, _ := fs.Sub(uiFiles, "ui")
+	s.mux.Handle("/ui/", http.StripPrefix("/ui", http.FileServer(http.FS(uiContent))))
+
+	s.mux.HandleFunc("/sources", s.handleSources)
 	s.mux.HandleFunc("/index", s.handleIndex)
 	s.mux.HandleFunc("/files", s.handleFiles)
 	s.mux.HandleFunc("/search/lexical", s.handleLexical)
 	s.mux.HandleFunc("/search/semantic", s.handleSemantic)
 	s.mux.HandleFunc("/search/structural", s.handleStructural)
+	s.mux.HandleFunc("/symbol", s.handleSymbol)
+	s.mux.HandleFunc("/context", s.handleContext)
 	s.mux.HandleFunc("/source", s.handleDeleteSource)
 	s.mux.HandleFunc("/summary", s.routeSummary)
 	s.mux.HandleFunc("/summaries", s.handleSummaries)

@@ -16,31 +16,29 @@ Index a directory of files into the daemon.
 
 **Response**
 ```json
-{
-  "files": 42,
-  "symbols": 318,
-  "skipped": 5,
-  "errors": [],
-  "pending_embed": 42
-}
+{ "files": 42, "symbols": 318, "skipped": 5, "errors": [], "pending_embed": 42 }
 ```
 
 ---
 
 ## GET /files
 
-Return all indexed file paths. Use this at the start of a session to orient yourself.
+Return indexed file paths. Use this at the start of a session to orient yourself.
 
 **Query params**
 | Param    | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `source` | no       | —       | Filter to this source namespace |
+| `glob`   | no       | —       | SQLite GLOB pattern to filter paths (e.g. `*/internal/*.go`) |
 | `limit`  | no       | 0       | Max results (0 = no limit) |
 
 **Response**
 ```json
-{ "files": ["/path/to/a.js", "/path/to/b.go"] }
+{ "files": ["internal/a.js", "internal/b.go"] }
 ```
+
+Paths are relative to `source` when a source filter is provided; absolute otherwise.
+GLOB uses `*` (any sequence) and `?` (single character). Case-sensitive.
 
 ---
 
@@ -51,50 +49,67 @@ Full-text search via SQLite FTS5 (porter stemmer).
 **Query params**
 | Param    | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `q`      | yes      | —       | FTS5 query string (supports `AND`, `OR`, `NOT`, prefix `*`) |
+| `q`      | yes      | —       | Search query |
 | `source` | no       | —       | Filter to this source namespace |
 | `limit`  | no       | 10      | Max results |
+| `raw`    | no       | `0`     | Set to `1` to pass `q` directly to FTS5 without sanitization |
 
-**Response** — array of:
+**Default mode** (`raw=0`): the query is sanitized — non-alphanumeric characters (`.`, `-`, `*`, `"`, etc.) are replaced with spaces, producing a keyword AND search. This prevents FTS5 syntax errors from natural-language input like `os.Exit` or `command-line`.
+
+**Raw mode** (`raw=1`): query is passed to FTS5 as-is. Supports full FTS5 syntax:
+| Syntax          | Meaning |
+|-----------------|---------|
+| `foo bar`       | AND — both tokens must appear |
+| `foo OR bar`    | OR — either token |
+| `"foo bar"`     | Exact phrase match |
+| `foo*`          | Prefix match |
+
+For conceptual or synonym queries, use `/search/semantic` instead.
+
+**Response**
 ```json
 {
-  "id": 7,
-  "path": "/path/to/file.go",
-  "source": "/path/to/project",
-  "snippet": "…matched **text** with context…",
-  "rank": -0.83
+  "query": "sanitized tokens",
+  "results": [
+    { "id": 7, "path": "internal/file.go", "snippet": "…matched text…", "rank": -0.83 }
+  ]
 }
 ```
-Lower rank = better match. Matches are wrapped in `**...**`.
+`query` shows the tokens that were AND-ed — useful for diagnosing empty results.
+Paths are relative to `source` when a source filter is provided.
+When both a file and one of its symbol chunks match, the parent file is suppressed.
 
 ---
 
 ## GET /search/structural
 
-Symbol lookup by name prefix (functions, classes, methods, types).
+Symbol lookup by name substring (functions, classes, methods, types).
+Case-insensitive for ASCII. Only covers Go, Python, and JavaScript sources.
 
 **Query params**
 | Param    | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `q`      | yes      | —       | Symbol name prefix |
+| `q`      | yes      | —       | Symbol name substring |
 | `source` | no       | —       | Filter to this source namespace |
 | `limit`  | no       | 20      | Max results |
 
 **Response** — array of:
 ```json
 {
-  "doc_id": 7,
-  "path": "/path/to/file.go",
-  "source": "/path/to/project",
+  "path": "internal/indexer/indexer.go",
   "kind": "function",
   "name": "IndexDir",
-  "signature": "func IndexDir(ctx context.Context, db *sql.DB, root string) (*Result, error)",
+  "signature": "func IndexDir(ctx context.Context, db *sql.DB, root, source string) (*Result, error)",
   "start_line": 18,
-  "end_line": 60
+  "end_line": 60,
+  "preview": "func IndexDir(...) {\n\t…first 20 lines…"
 }
 ```
 
 `kind` values: `function`, `method`, `class`, `type`
+
+`preview` contains the first 20 lines of the function body. Omitted when no chunk is available.
+Paths are relative to `source` when a source filter is provided.
 
 ---
 
@@ -112,19 +127,15 @@ Vector similarity search using GloVe embeddings (cosine distance). No external s
 
 **Response** — array of:
 ```json
-{
-  "id": 7,
-  "path": "/path/to/file.go",
-  "source": "/path/to/project",
-  "kind": "file",
-  "similarity": 0.91
-}
+{ "id": 7, "path": "internal/file.go", "kind": "file", "similarity": 0.91, "snippet": "First 800 chars of content…" }
 ```
 
 Requires word vectors to be loaded (run `download-vectors` once, then restart daemon).
 Only returns results for documents that have been embedded (embedding happens asynchronously after indexing).
 
-Results with `"kind": "chunk"` are symbol-level embeddings. Their `path` has the form `/path/to/file.go::FunctionName@42` where `42` is the start line. The parent file itself is not embedded when chunks exist — only the chunks are.
+Symbol chunks have paths in the form `internal/file.go::FunctionName@42` where `42` is the start line. The parent file itself is not embedded when chunks exist — only the chunks are.
+
+Paths are relative to `source` when a source filter is provided. When both a file and one of its chunks score above the threshold, the parent file is suppressed.
 
 ---
 
@@ -162,14 +173,7 @@ List stored summaries in reverse chronological order.
 
 **Response** — array of:
 ```json
-{
-  "id": 3,
-  "doc_id": 99,
-  "tags": "auth,session",
-  "created_at": 1709000000,
-  "source": "/path/to/project",
-  "preview": "First 300 characters of the summary text…"
-}
+{ "id": 3, "tags": "auth,session", "created_at": 1709000000, "preview": "First 300 chars of summary text…" }
 ```
 
 ---
@@ -247,3 +251,22 @@ Liveness check.
 ## Skipped directories
 
 `.git`, `node_modules`, `vendor`, `.venv`, `__pycache__`, `dist`, `build`
+
+## Ignore files
+
+Place a `.cercleignore` file in the root of the directory being indexed to exclude files or directories. The project's existing `.gitignore` is also read automatically if present.
+
+Supported syntax (subset of gitignore):
+
+| Pattern | Behaviour |
+|---------|-----------|
+| `# comment` | Ignored |
+| blank line | Ignored |
+| `pattern` (no `/`) | Matches basename anywhere in tree |
+| `dir/pattern` (contains `/`) | Anchored to indexed root |
+| `pattern/` (trailing `/`) | Directories only |
+| `*`, `?`, `[…]` | filepath.Match glob semantics |
+
+`**` and negation (`!`) are not supported in v1.
+
+Applied after the built-in directory and extension filters.

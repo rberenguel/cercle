@@ -71,7 +71,7 @@ func main() {
 	srv := api.NewServer(*addr, database, emb, worker, Version)
 
 	go func() {
-		log.Printf("cercled %s listening on %s", Version, *addr)
+		log.Printf("cercled %s listening on %s — UI: http://%s/ui/", Version, *addr, *addr)
 		if err := srv.Start(); err != nil {
 			log.Fatalf("server: %v", err)
 		}

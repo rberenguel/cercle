@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>cercle</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" href="icon.png">
+</head>
+<body>
+
+  <header>
+    <div class="header-left">
+      <span class="logo">cercle</span>
+      <span class="health-dot" id="health-dot" title="checking…"></span>
+      <span class="health-label" id="health-label">—</span>
+    </div>
+    <div class="header-center">
+      <label class="field-label" for="source-filter">source</label>
+      <input type="text" id="source-filter" placeholder="namespace filter (optional)" autocomplete="off" spellcheck="false">
+    </div>
+  </header>
+
+  <nav>
+    <button class="tab active" data-tab="search">search</button>
+    <button class="tab" data-tab="files">files</button>
+    <button class="tab" data-tab="summaries">summaries</button>
+    <button class="tab" data-tab="index">index</button>
+  </nav>
+
+  <main>
+
+    <!-- ── Search ── -->
+    <section id="tab-search" class="tab-content active">
+      <div class="search-toolbar">
+        <input type="text" id="search-query" placeholder="query…" autocomplete="off" spellcheck="false">
+        <button id="search-btn">search</button>
+        <div class="mode-group">
+          <button class="mode-btn active" data-mode="all">all</button>
+          <button class="mode-btn" data-mode="lexical">lexical</button>
+          <button class="mode-btn" data-mode="structural">structural</button>
+          <button class="mode-btn" data-mode="semantic">semantic</button>
+        </div>
+      </div>
+      <div id="search-results" class="search-results"></div>
+    </section>
+
+    <!-- ── Files ── -->
+    <section id="tab-files" class="tab-content">
+      <div class="files-toolbar">
+        <input type="text" id="files-glob" placeholder="glob filter (e.g. */internal/*.go)" autocomplete="off" spellcheck="false">
+        <button id="files-refresh">refresh</button>
+        <span class="file-count" id="file-count"></span>
+      </div>
+      <div id="files-list" class="files-list"></div>
+    </section>
+
+    <!-- ── Summaries ── -->
+    <section id="tab-summaries" class="tab-content">
+      <div class="summary-form">
+        <input type="text" id="summary-tags" placeholder="tags (comma-separated)" autocomplete="off" spellcheck="false">
+        <textarea id="summary-text" placeholder="summary text… (⌘↵ to submit)"></textarea>
+        <button id="summary-submit">add summary</button>
+      </div>
+      <div id="summaries-list" class="summaries-list"></div>
+    </section>
+
+    <!-- ── Index ── -->
+    <section id="tab-index" class="tab-content">
+      <div class="index-toolbar">
+        <input type="text" id="index-path" placeholder="/absolute/path/to/directory" autocomplete="off" spellcheck="false">
+        <input type="text" id="index-source" placeholder="source tag (optional)" autocomplete="off" spellcheck="false">
+        <button id="index-btn">index</button>
+      </div>
+      <div id="index-result" class="index-result"></div>
+      <div class="source-list-header">indexed sources</div>
+      <div id="indexed-sources" class="indexed-sources"></div>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

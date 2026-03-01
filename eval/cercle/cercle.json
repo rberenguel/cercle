@@ -1,0 +1,106 @@
+{
+  "description": "Code Q&A over the cercle codebase",
+  "source": null,
+  "tasks": [
+    {
+      "id": "q01",
+      "question": "What is the name of the SQL trigger that invalidates stale embeddings when a document's content is updated?",
+      "expected_keywords": ["documents_embedding_invalidate"]
+    },
+    {
+      "id": "q02",
+      "question": "What delimiter characters does the FTS5 snippet() function use to mark matched text in cercle's lexical search?",
+      "expected_keywords": ["**"]
+    },
+    {
+      "id": "q03",
+      "question": "How many documents does the embed worker fetch per batch in its SQL query (the LIMIT value)?",
+      "expected_keywords": ["100"]
+    },
+    {
+      "id": "q04",
+      "question": "What is the default TCP port that the cercled daemon listens on?",
+      "expected_keywords": ["7770"]
+    },
+    {
+      "id": "q05",
+      "question": "What command-line flag causes cercled to wipe the database and exit immediately without starting the HTTP server?",
+      "expected_keywords": ["-reset"]
+    },
+    {
+      "id": "q06",
+      "question": "What column was added to the documents table in schema migration version 3 (v3)?",
+      "expected_keywords": ["parent_id"]
+    },
+    {
+      "id": "q07",
+      "question": "What model ID string does the GloVe local embedder return for 100-dimensional vectors?",
+      "expected_keywords": ["glove-local-dim100"]
+    },
+    {
+      "id": "q08",
+      "question": "What environment variable do the cercle rlm scripts read to determine the source namespace?",
+      "expected_keywords": ["CERCLE_SOURCE"]
+    },
+    {
+      "id": "q09",
+      "question": "What two separator characters appear in the chunk path format used when indexing code symbols (e.g. path::Name@line)?",
+      "expected_keywords": ["::", "@"]
+    },
+    {
+      "id": "q10",
+      "question": "What min_similarity value does the cercle skill documentation recommend to suppress noise in semantic search results?",
+      "expected_keywords": ["0.6"]
+    },
+    {
+      "id": "q11",
+      "question": "Name two directory names that the cercle indexer skips during file tree traversal.",
+      "expected_keywords": ["node_modules", "vendor"]
+    },
+    {
+      "id": "q12",
+      "question": "What is the name of the Go function in cercle that deletes a summary and its underlying document?",
+      "expected_keywords": ["DeleteSummary"]
+    },
+    {
+      "id": "q13",
+      "question": "What is the default result limit for the GET /summaries API endpoint in cercle?",
+      "expected_keywords": ["50"]
+    },
+    {
+      "id": "q14",
+      "question": "What macOS command must be run after building the cercled binary to allow it to use the SQLite extension?",
+      "expected_keywords": ["codesign"]
+    },
+    {
+      "id": "q15",
+      "question": "What Go build tag is required when compiling cercled to enable FTS5 full-text search support?",
+      "expected_keywords": ["sqlite_fts5"]
+    },
+    {
+      "id": "q16",
+      "question": "What is the maximum number of concurrent goroutines the embed worker uses to embed documents in parallel?",
+      "expected_keywords": ["4"]
+    },
+    {
+      "id": "q17",
+      "question": "What GloVe dataset (by filename prefix) does the cercle download-vectors script fetch from Stanford NLP?",
+      "expected_keywords": ["glove.6B"]
+    },
+    {
+      "id": "q18",
+      "question": "What are the two JSON field names for the start and end line range in cercle's Symbol struct?",
+      "expected_keywords": ["start_line", "end_line"]
+    },
+    {
+      "id": "q19",
+      "question": "What Go module path provides the SQLite3 driver used by cercle (from go.mod)?",
+      "expected_keywords": ["mattn/go-sqlite3"]
+    },
+    {
+      "id": "q20",
+      "question": "What does a `semantic: false` value in the /health response indicate about the cercled server's state?",
+      "expected_keywords": ["word vectors"]
+    }
+  ]
+}

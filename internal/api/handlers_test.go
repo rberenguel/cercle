@@ -93,8 +93,18 @@ func TestHandleLexical_EmptyResultsIsArray(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
 	}
-	if strings.TrimSpace(w.Body.String()) == "null" {
-		t.Error("want [], got null")
+	var body struct {
+		Results []any  `json:"results"`
+		Query   string `json:"query"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Results == nil {
+		t.Error("want results array, got nil")
+	}
+	if body.Query == "" {
+		t.Error("want non-empty query field")
 	}
 }
 

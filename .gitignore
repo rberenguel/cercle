@@ -4,3 +4,4 @@ bin/
 *.db-shm
 *.db-wal
 vectors.txt
+eval/results/

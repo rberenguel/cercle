@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# rlm-context <path> <line> [n]
+# Returns n lines above and below <line> from an indexed file (default n=10).
+# Use this to see constants, variable declarations, or any non-symbol content
+# when you have a file path and approximate line number from a prior search result.
+#
+# <path> and <line> must come from a prior search result — not for browsing.
+# Scoped to CERCLE_SOURCE (defaults to $PWD).
+set -euo pipefail
+
+CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
+CERCLE_SOURCE="${CERCLE_SOURCE:-$PWD}"
+FILE_PATH="${1:?usage: rlm-context <path> <line> [n]}"
+LINE="${2:?usage: rlm-context <path> <line> [n]}"
+N="${3:-10}"
+
+PATH_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$FILE_PATH")
+SRC_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CERCLE_SOURCE")
+
+curl -s --fail-with-body "http://${CERCLE_ADDR}/context?path=${PATH_ENC}&line=${LINE}&n=${N}&source=${SRC_ENC}" \
+  | python3 "$(dirname "$0")/rlm-format" context

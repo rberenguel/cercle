@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# rlm-read-symbol <path> <symbol>
+# Returns the full body of a named symbol (function, method, or type) from an
+# already-indexed file. Use this after rlm-code-structure to get the complete
+# body when the preview is truncated.
+#
+# <path> and <symbol> must come from a prior rlm-code-structure result.
+# Scoped to CERCLE_SOURCE (defaults to $PWD).
+set -euo pipefail
+
+CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
+CERCLE_SOURCE="${CERCLE_SOURCE:-$PWD}"
+FILE_PATH="${1:?usage: rlm-read-symbol <path> <symbol>}"
+SYMBOL="${2:?usage: rlm-read-symbol <path> <symbol>}"
+
+PATH_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$FILE_PATH")
+SYM_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$SYMBOL")
+SRC_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CERCLE_SOURCE")
+
+curl -s --fail-with-body "http://${CERCLE_ADDR}/symbol?path=${PATH_ENC}&name=${SYM_ENC}&source=${SRC_ENC}" \
+  | python3 "$(dirname "$0")/rlm-format" symbol

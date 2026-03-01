@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""rlm-format <mode>
+
+Reads JSON from stdin, writes compact markdown to stdout.
+Drops internal fields (id, doc_id, source) agents don't need.
+"""
+import sys, json
+
+def lang(path):
+    base = path.split('::')[0]
+    ext  = base.rsplit('.', 1)[-1].lower() if '.' in base else ''
+    return {'go':'go','py':'python','js':'javascript','ts':'typescript',
+            'rs':'rust','c':'c','h':'c','sh':'bash'}.get(ext, '')
+
+def fence(content, path=''):
+    return f'```{lang(path)}\n{content.strip()}\n```'
+
+mode = sys.argv[1] if len(sys.argv) > 1 else ''
+try:
+    data = json.load(sys.stdin)
+except json.JSONDecodeError as e:
+    sys.exit(f'rlm-format: bad JSON: {e}')
+
+if mode == 'structural':
+    if not data:
+        print('(no results)')
+    else:
+        for r in data:
+            print(f"## {r['name']} ({r['kind']}) — {r['path']}:{r['start_line']}-{r['end_line']}")
+            if r.get('preview'):
+                print(fence(r['preview'], r['path']))
+            print()
+
+elif mode == 'semantic':
+    if not data:
+        print('(no results)')
+    else:
+        for r in data:
+            print(f"## {r['path']} (similarity {r['similarity']:.2f})")
+            if r.get('snippet'):
+                print(fence(r['snippet'], r['path']))
+            print()
+
+elif mode == 'lexical':
+    results = data.get('results', []) if isinstance(data, dict) else data
+    query   = data.get('query', '')   if isinstance(data, dict) else ''
+    if query:
+        print(f'query: `{query}`\n')
+    if not results:
+        print('(no results — switch to semantic)')
+    else:
+        for r in results:
+            print(f"## {r['path']}")
+            if r.get('snippet'):
+                print(fence(r['snippet'], r['path']))
+            print()
+
+elif mode == 'symbol':
+    if 'error' in data:
+        print(f"error: {data['error']}")
+    else:
+        print(f"## {data['name']} ({data['kind']}) — {data['path']}:{data['start_line']}-{data['end_line']}")
+        if data.get('content'):
+            print(fence(data['content'], data['path']))
+
+elif mode == 'context':
+    if 'error' in data:
+        print(f"error: {data['error']}")
+    else:
+        print(f"## {data['path']}:{data['start_line']}-{data['end_line']}")
+        if data.get('content'):
+            print(fence(data['content'], data['path']))
+
+elif mode == 'files':
+    files = data.get('files', data) if isinstance(data, dict) else data
+    print('\n'.join(files))
+
+elif mode == 'summaries':
+    if not data:
+        print('(no summaries)')
+    else:
+        for r in data:
+            preview = (r.get('preview') or '').replace('\n', ' ')[:120]
+            print(f"[{r['id']}] {r.get('tags','—')}: {preview}")
+
+elif mode == 'embed':
+    status  = data.get('status', '?')
+    pending = data.get('pending_embed', '?')
+    print(f"embed {status} ({pending} pending)")
+
+elif mode == 'index':
+    files   = data.get('files', '?')
+    symbols = data.get('symbols', '?')
+    skipped = data.get('skipped', '?')
+    pending = data.get('pending_embed', '?')
+    errors  = data.get('errors', [])
+    print(f"indexed {files} files, {symbols} symbols, {skipped} skipped, {pending} pending embed")
+    for e in errors:
+        print(f"  error: {e}")
+
+elif mode == 'delete-source':
+    source  = data.get('source', '?')
+    deleted = data.get('deleted', '?')
+    print(f"deleted {deleted} docs from {source}")
+
+elif mode == 'delete-summary':
+    print(f"summary {data.get('id', '?')} deleted")
+
+elif mode == 'submit-summary':
+    print(f"summary {data.get('id', '?')} indexed")
+
+else:
+    print(json.dumps(data, indent=2))

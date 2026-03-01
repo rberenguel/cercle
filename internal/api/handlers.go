@@ -112,12 +112,14 @@ func (s *Server) handleLexical(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing query param 'q'")
 		return
 	}
-	results, err := search.Lexical(r.Context(), s.db, q, r.URL.Query().Get("source"), queryInt(r, "limit", 10))
+	raw := r.URL.Query().Get("raw") == "1"
+	sanitized := search.SanitizeFTSQuery(q)
+	results, err := search.Lexical(r.Context(), s.db, q, r.URL.Query().Get("source"), queryInt(r, "limit", 10), raw)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, results)
+	writeJSON(w, http.StatusOK, map[string]any{"results": results, "query": sanitized})
 }
 
 // -- GET /search/semantic?q=<concept>[&limit=N] -------------------------------
@@ -158,6 +160,61 @@ func (s *Server) handleStructural(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, results)
+}
+
+// -- GET /symbol?path=<file>&name=<symbol>[&source=<ns>] ----------------------
+
+func (s *Server) handleSymbol(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "GET required")
+		return
+	}
+	path := r.URL.Query().Get("path")
+	name := r.URL.Query().Get("name")
+	if path == "" || name == "" {
+		writeError(w, http.StatusBadRequest, "missing required params 'path' and 'name'")
+		return
+	}
+	result, err := search.ReadSymbol(r.Context(), s.db, path, name, r.URL.Query().Get("source"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if result == nil {
+		writeError(w, http.StatusNotFound, "symbol not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// -- GET /context?path=<file>&line=<n>&n=<window>[&source=<ns>] ---------------
+
+func (s *Server) handleContext(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "GET required")
+		return
+	}
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		writeError(w, http.StatusBadRequest, "missing required param 'path'")
+		return
+	}
+	line := queryInt(r, "line", 0)
+	if line <= 0 {
+		writeError(w, http.StatusBadRequest, "missing or invalid param 'line'")
+		return
+	}
+	n := queryInt(r, "n", 10)
+	result, err := search.ReadContext(r.Context(), s.db, path, line, n, r.URL.Query().Get("source"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if result == nil {
+		writeError(w, http.StatusNotFound, "file not found in index")
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 // -- /summary (POST = create, DELETE = remove) --------------------------------
@@ -295,6 +352,21 @@ func (s *Server) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"source": source, "deleted": n})
 }
 
+// -- GET /sources -------------------------------------------------------------
+
+func (s *Server) handleSources(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "GET required")
+		return
+	}
+	items, err := search.Sources(r.Context(), s.db)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
 // -- GET /files?[source=...][&limit=N] ----------------------------------------
 
 func (s *Server) handleFiles(w http.ResponseWriter, r *http.Request) {
@@ -305,7 +377,7 @@ func (s *Server) handleFiles(w http.ResponseWriter, r *http.Request) {
 	source := r.URL.Query().Get("source")
 	limit := queryInt(r, "limit", 0) // 0 = no limit
 
-	files, err := search.Files(r.Context(), s.db, source, limit)
+	files, err := search.Files(r.Context(), s.db, source, r.URL.Query().Get("glob"), limit)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

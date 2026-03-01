@@ -40,6 +40,8 @@ The other practical difference is scope. RAG pipelines are typically stateless a
 
 If RAG is a library, `cercle` is closer to a shared second brain.
 
+This difference shows up empirically. In a cold-session reasoning test, a vanilla agent correctly named a SQL trigger when asked about it directly — then, in a separate reasoning question, claimed that trigger did not exist and built its entire explanation around that wrong premise. The RLM-equipped agent re-retrieved the trigger definition and made it the centrepiece of the correct answer. Knowing a fact and being able to reason with it under load are not the same thing. See [Evaluation](#evaluation).
+
 ---
 
 ## Departing from the original REPL model
@@ -59,6 +61,34 @@ The distinction matters for several reasons:
 - **Concurrency.** Multiple agents working in parallel can query the same daemon simultaneously without conflict. The daemon handles concurrency natively in Go.
 
 The macOS terminal *is* the REPL. It has always been.
+
+---
+
+## Evaluation
+
+A manual eval over 20 codebase Q&A tasks on cercle's own source measured accuracy and context usage across two conditions: a vanilla agent answering from parametric knowledge only, and an RLM-equipped agent using the retrieval tools.
+
+| Condition | Score | Context used |
+|-----------|-------|--------------|
+| Vanilla | 19.5/20 | 74% |
+| RLM | 20/20 | 77% |
+
+3% more context, half a mistake fewer. The vanilla partial miss was on a question requiring two specific internal directory names — it recalled one correct pair but missed the expected `vendor` entry.
+
+Answers are written as markdown bullet lists rather than JSON. Switching from a JSON answer format to markdown noticeably reduced context consumption during the answer-writing step.
+
+A second, harder question was run cold (fresh session, no prior context) to test cross-file reasoning: *"Walk through the full sequence of events that causes a chunk document to be re-embedded after its source file is modified on disk. Name each component involved."* This requires chaining facts across the indexer, the SQL trigger, and the embed worker — no single file contains the full answer.
+
+| Condition | Correct | Context used |
+|-----------|---------|--------------|
+| Vanilla | ✗ | 83% available |
+| RLM | ✓ | 79% available |
+
+On raw context cost, vanilla appears to win. But its answer was substantively wrong: it claimed *"there is no automatic invalidation"* and missed the `documents_embedding_invalidate` trigger entirely — despite having named that trigger correctly in Q1. RLM retrieved the trigger definition in context and made it the centrepiece of its explanation. The 4% context premium was justified.
+
+The pattern: RLM's overhead does not pay off for pure lookup questions on a small codebase, but it does pay off for cross-file reasoning — precisely because it re-retrieves the relevant code rather than relying on associative recall that can drop connections under reasoning load. The crossover point is codebase size and question complexity together.
+
+The eval methodology and prompts are in [`eval/README.md`](eval/README.md). The next round of tooling improvements will address the issues raised in [`opinions/20260301-2-claude-sonnet.md`](opinions/20260301-2-claude-sonnet.md): semantic search quality, `rlm-context` usability without a prior line anchor, and lexical disambiguation when Go identifiers collide with SQL keywords.
 
 ---
 
@@ -178,6 +208,8 @@ task search-semantic Q="vector similarity scoring"
 ```
 
 The daemon stores its database at `~/.cercle/cercle.db`. It is safe to restart; the index persists.
+
+A minimal web UI is available at `http://127.0.0.1:7770/ui/` for verifying the daemon is running and running manual searches across all three search modes.
 
 ---
 

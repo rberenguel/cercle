@@ -7,4 +7,5 @@ set -euo pipefail
 CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
 ID="${1:?usage: rlm-delete-summary <id>}"
 
-curl -sf -X DELETE "http://${CERCLE_ADDR}/summary?id=${ID}"
+curl -s --fail-with-body -X DELETE "http://${CERCLE_ADDR}/summary?id=${ID}" \
+  | python3 "$(dirname "$0")/rlm-format" delete-summary

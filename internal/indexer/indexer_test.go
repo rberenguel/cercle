@@ -64,14 +64,14 @@ func TestIsSupportedFile(t *testing.T) {
 // ---- shouldSkipDir ----
 
 func TestShouldSkipDir(t *testing.T) {
-	skipped := []string{".git", "node_modules", "vendor", ".venv", "__pycache__", "dist", "build"}
+	skipped := []string{".git", "node_modules", "vendor", ".venv", "__pycache__", "dist", "build", ".claude", ".gemini"}
 	for _, d := range skipped {
 		if !shouldSkipDir(d) {
 			t.Errorf("shouldSkipDir(%q) = false, want true", d)
 		}
 	}
 
-	kept := []string{"src", "internal", "pkg", "lib", "test", "docs", ".claude"}
+	kept := []string{"src", "internal", "pkg", "lib", "test", "docs"}
 	for _, d := range kept {
 		if shouldSkipDir(d) {
 			t.Errorf("shouldSkipDir(%q) = true, want false", d)

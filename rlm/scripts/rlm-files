@@ -1,13 +1,41 @@
 #!/usr/bin/env bash
-# rlm-files [limit]
-# List all indexed file paths. Use at session start to orient yourself.
+# rlm-files [glob-pattern] [limit]
+# List indexed file paths. Supports glob patterns (*, ?) to filter results.
 # Scoped to CERCLE_SOURCE (defaults to $PWD). Unset to list across all sources.
+#
+# If the first argument is a plain integer it is treated as a limit (backwards-
+# compatible with the old rlm-files [limit] signature).
+#
+# Examples:
+#   rlm-files                          — all files in source
+#   rlm-files 50                       — first 50 files (limit, old syntax)
+#   rlm-files "*/internal/search/*.go" — .go files under any search/ directory
+#   rlm-files "*/cmd/*" 20             — up to 20 files under any cmd/ directory
 set -euo pipefail
 
 CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
 CERCLE_SOURCE="${CERCLE_SOURCE:-$PWD}"
-LIMIT="${1:-0}"
+
+GLOB=""
+LIMIT=0
+
+if [ -n "${1:-}" ]; then
+  if [[ "${1}" =~ ^[0-9]+$ ]]; then
+    # First arg is a plain integer — treat as limit (backwards-compatible).
+    LIMIT="${1}"
+  else
+    GLOB="${1}"
+    LIMIT="${2:-0}"
+  fi
+fi
 
 SRC_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CERCLE_SOURCE")
 
-curl -sf "http://${CERCLE_ADDR}/files?source=${SRC_ENC}&limit=${LIMIT}"
+URL="http://${CERCLE_ADDR}/files?source=${SRC_ENC}&limit=${LIMIT}"
+if [ -n "$GLOB" ]; then
+  GLOB_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$GLOB")
+  URL="${URL}&glob=${GLOB_ENC}"
+fi
+
+curl -s --fail-with-body "$URL" \
+  | python3 "$(dirname "$0")/rlm-format" files

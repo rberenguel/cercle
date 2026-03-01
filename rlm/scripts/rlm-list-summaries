@@ -10,4 +10,5 @@ LIMIT="${1:-50}"
 
 SRC_ENC=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$CERCLE_SOURCE")
 
-curl -sf "http://${CERCLE_ADDR}/summaries?source=${SRC_ENC}&limit=${LIMIT}"
+curl -s --fail-with-body "http://${CERCLE_ADDR}/summaries?source=${SRC_ENC}&limit=${LIMIT}" \
+  | python3 "$(dirname "$0")/rlm-format" summaries

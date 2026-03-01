@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/ruben/cercle/internal/embedder"
 )
@@ -18,7 +19,10 @@ type SemanticResult struct {
 	Source     string  `json:"source"`
 	Kind       string  `json:"kind"`
 	Similarity float64 `json:"similarity"`
+	Snippet    string  `json:"snippet"`
 }
+
+const snippetMaxRunes = 800
 
 // Semantic embeds the query using the provided Embedder and returns nearest
 // neighbours by cosine similarity.
@@ -43,17 +47,17 @@ func Semantic(ctx context.Context, db *sql.DB, emb *embedder.Embedder, query, so
 	)
 	if source != "" {
 		rows, err = db.QueryContext(ctx, `
-			SELECT e.doc_id, d.path, COALESCE(d.source,''), d.kind, e.vector
+			SELECT e.doc_id, d.path, COALESCE(d.source,''), d.kind, e.vector, COALESCE(d.content,'')
 			FROM embeddings e
 			JOIN documents d ON d.id = e.doc_id
-			WHERE e.model = ? AND d.source = ?
+			WHERE e.model = ? AND d.source = ? AND length(e.vector) > 0
 		`, ModelID(emb), source)
 	} else {
 		rows, err = db.QueryContext(ctx, `
-			SELECT e.doc_id, d.path, COALESCE(d.source,''), d.kind, e.vector
+			SELECT e.doc_id, d.path, COALESCE(d.source,''), d.kind, e.vector, COALESCE(d.content,'')
 			FROM embeddings e
 			JOIN documents d ON d.id = e.doc_id
-			WHERE e.model = ?
+			WHERE e.model = ? AND length(e.vector) > 0
 		`, ModelID(emb))
 	}
 	if err != nil {
@@ -69,10 +73,12 @@ func Semantic(ctx context.Context, db *sql.DB, emb *embedder.Embedder, query, so
 	for rows.Next() {
 		var c candidate
 		var blob []byte
-		if err := rows.Scan(&c.ID, &c.Path, &c.Source, &c.Kind, &blob); err != nil {
+		var content string
+		if err := rows.Scan(&c.ID, &c.Path, &c.Source, &c.Kind, &blob, &content); err != nil {
 			return nil, err
 		}
 		c.vec = blobToFloat32(blob)
+		c.Snippet = truncateRunes(content, snippetMaxRunes)
 		candidates = append(candidates, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -96,23 +102,38 @@ func Semantic(ctx context.Context, db *sql.DB, emb *embedder.Embedder, query, so
 	if len(hits) > limit {
 		hits = hits[:limit]
 	}
-	results := make([]SemanticResult, len(hits))
-	for i, h := range hits {
-		results[i] = h.SemanticResult
-		results[i].Similarity = h.sim
+	// Relativize paths and suppress parent-file results when a chunk also matched.
+	chunkParents := make(map[string]bool)
+	for _, h := range hits {
+		p := relativizePath(h.Path, source)
+		if idx := strings.Index(p, "::"); idx != -1 {
+			chunkParents[p[:idx]] = true
+		}
+	}
+
+	results := make([]SemanticResult, 0, len(hits))
+	for _, h := range hits {
+		r := h.SemanticResult
+		r.Similarity = h.sim
+		r.Path = relativizePath(r.Path, source)
+		if !strings.Contains(r.Path, "::") && chunkParents[r.Path] {
+			continue
+		}
+		results = append(results, r)
 	}
 	return results, nil
 }
 
 // EmbedAndStore generates an embedding for docID and stores it.
+// If the text contains no known tokens, an empty-blob sentinel is stored so
+// the document no longer appears in the pending queue.
 func EmbedAndStore(ctx context.Context, db *sql.DB, emb *embedder.Embedder, docID int64, text string) error {
 	if emb == nil {
 		return nil // silently skip; daemon was started without vectors
 	}
 	vec := emb.Embed(text)
-	if vec == nil {
-		return nil // no known tokens; skip rather than store a zero vector
-	}
+	// float32ToBlob(nil) returns []byte{} — an empty BLOB sentinel that marks
+	// this doc as "processed but unencodable" without storing a useless vector.
 	blob := float32ToBlob(vec)
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO embeddings (doc_id, model, vector) VALUES (?, ?, ?)
@@ -146,6 +167,14 @@ func PendingCount(ctx context.Context, db *sql.DB, emb *embedder.Embedder) (int,
 		)
 	`, ModelID(emb)).Scan(&n)
 	return n, err
+}
+
+func truncateRunes(s string, max int) string {
+	r := []rune(strings.TrimSpace(s))
+	if len(r) <= max {
+		return string(r)
+	}
+	return string(r[:max]) + "…"
 }
 
 func cosineSimilarity(a, b []float32) float64 {

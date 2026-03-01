@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# rlm-index <path> [source]
+# Index a directory, then wait for all documents to be embedded.
+# <path>   — directory to scan (resolved to absolute path)
+# [source] — namespace identifier; defaults to the absolute path
+# Re-running is incremental — only changed files are re-indexed.
+set -euo pipefail
+
+CERCLE_ADDR="${CERCLE_ADDR:-127.0.0.1:7770}"
+DIR="${1:?usage: rlm-index <path> [source]}"
+SOURCE="${2:-}"
+
+BODY=$(python3 -c "
+import json, sys, os
+path = os.path.abspath(sys.argv[1])
+source = sys.argv[2]
+d = {'path': path}
+if source:
+    d['source'] = source
+print(json.dumps(d))
+" "$DIR" "$SOURCE")
+
+ABS=$(python3 -c "import os,sys; print(os.path.abspath(sys.argv[1]))" "$DIR")
+echo "Indexing $ABS ..." >&2
+RESULT=$(curl -s --fail-with-body -X POST "http://${CERCLE_ADDR}/index" \
+  -H 'Content-Type: application/json' \
+  -d "$BODY")
+echo "$RESULT" | python3 "$(dirname "$0")/rlm-format" index
+
+# Skip embedding wait if vectors are not loaded.
+SEMANTIC=$(curl -s --fail-with-body "http://${CERCLE_ADDR}/health" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin).get('semantic', False))")
+if [ "$SEMANTIC" != "True" ]; then
+  echo "Semantic search not enabled (no vectors loaded) — skipping embedding wait." >&2
+  exit 0
+fi
+
+# Keep triggering POST /embed until pending_embed is 0.
+# Failures are non-fatal: a missed trigger just means a 30s fallback tick.
+echo "Embedding — waiting..." >&2
+while true; do
+  EMBED=$(curl -s --fail-with-body -X POST "http://${CERCLE_ADDR}/embed" 2>/dev/null) || true
+  PENDING=$(echo "$EMBED" | python3 -c \
+    "import json,sys; print(json.load(sys.stdin).get('pending_embed',-1))" \
+    2>/dev/null) || true
+  if [ "${PENDING:-1}" -le 0 ] 2>/dev/null; then
+    echo "" >&2
+    echo "Embedding complete." >&2
+    break
+  fi
+  printf "\r  pending: %-6s" "${PENDING:-?}" >&2
+  sleep 1
+done
