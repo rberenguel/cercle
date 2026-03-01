@@ -1,5 +1,3 @@
-<div align="center">
-
 <img src="cercle.png" alt="cercle" width="160">
 
 # cercle
@@ -16,7 +14,35 @@ A compiled Go daemon that indexes codebases and documents into a multi-tier sear
 
 ---
 
-## Motivation
+<!-- vscode-markdown-toc -->
+* 1. [Motivation](#Motivation)
+* 2. [This is not RAG (or is it?)](#ThisisnotRAGorisit)
+* 3. [Departing from the original REPL model](#DepartingfromtheoriginalREPLmodel)
+* 4. [Evaluation](#Evaluation)
+* 5. [Architecture](#Architecture)
+	* 5.1. [The Go Daemon](#TheGoDaemon)
+	* 5.2. [The Multi-Tier Data Layer](#TheMulti-TierDataLayer)
+	* 5.3. [The CLI Skills](#TheCLISkills)
+* 6. [Agent integration](#Agentintegration)
+	* 6.1. [gemini-cli](#gemini-cli)
+	* 6.2. [Claude Code](#ClaudeCode)
+	* 6.3. [Source namespacing](#Sourcenamespacing)
+* 7. [Quick start](#Quickstart)
+* 8. [API reference](#APIreference)
+* 9. [Supported languages for structural parsing](#Supportedlanguagesforstructuralparsing)
+* 10. [Tradeoffs and known limitations](#Tradeoffsandknownlimitations)
+	* 10.1. [Deliberate tradeoffs](#Deliberatetradeoffs)
+	* 10.2. [Known limitations](#Knownlimitations)
+* 11. [Acknowledgements](#Acknowledgements)
+
+<!-- vscode-markdown-toc-config
+	numbering=true
+	autoSave=true
+	/vscode-markdown-toc-config -->
+<!-- /vscode-markdown-toc --><div align="center">
+
+
+##  1. <a name='Motivation'></a>Motivation
 
 Large context windows do not solve the problem of context rot. As an agent accumulates token history — tool results, sub-agent responses, intermediate reasoning — its performance degrades. This is not a size problem; it is a *quality* problem. Filling a 1M-token window with marginally relevant content is worse than a focused 50K-token window containing only what is needed right now.
 
@@ -28,7 +54,7 @@ Drew Breunig's [*The Potential of RLMs*](https://www.dbreunig.com/2026/02/09/the
 
 ---
 
-## This is not RAG
+##  2. <a name='ThisisnotRAGorisit'></a>This is not RAG (or is it?)
 
 Retrieval-Augmented Generation (RAG) and `cercle` both involve an external store that an LLM can query. The similarity ends there.
 
@@ -44,7 +70,7 @@ This difference shows up empirically. In a cold-session reasoning test, a vanill
 
 ---
 
-## Departing from the original REPL model
+##  3. <a name='DepartingfromtheoriginalREPLmodel'></a>Departing from the original REPL model
 
 The original RLM formulation proposes a Python REPL as the programmatic context pool. The agent loads data into Python variables, writes ad-hoc query code, and calls a function to trigger sub-LLM invocations. This works, but it carries a significant cost: the retrieval mechanism is *ephemeral*. Every session starts cold. The REPL holds no persistent state. Query logic is written anew each time, consuming tokens to express things that should be infrastructure.
 
@@ -64,7 +90,7 @@ The macOS terminal *is* the REPL. It has always been.
 
 ---
 
-## Evaluation
+##  4. <a name='Evaluation'></a>Evaluation
 
 A manual eval over 20 codebase Q&A tasks on cercle's own source measured accuracy and context usage across two conditions: a vanilla agent answering from parametric knowledge only, and an RLM-equipped agent using the retrieval tools.
 
@@ -92,13 +118,13 @@ The eval methodology and prompts are in [`eval/README.md`](eval/README.md). The 
 
 ---
 
-## Architecture
+##  5. <a name='Architecture'></a>Architecture
 
-### The Go Daemon
+###  5.1. <a name='TheGoDaemon'></a>The Go Daemon
 
 A lightweight, persistent background service that exposes a local REST API on `127.0.0.1:7770`. It owns all connections to the underlying databases and parsers, handles concurrent queries, and runs a background embedding worker that drains newly indexed documents into the vector store asynchronously.
 
-### The Multi-Tier Data Layer
+###  5.2. <a name='TheMulti-TierDataLayer'></a>The Multi-Tier Data Layer
 
 Three complementary search mechanisms, each suited to a different retrieval strategy:
 
@@ -112,7 +138,7 @@ For source files with extractable symbols (Go, Python, JS), the indexer emits on
 
 A background embedding worker runs inside the daemon, processing un-embedded documents in bounded batches. Indexing does not block on embedding; the worker catches up asynchronously. No external service is required.
 
-### The CLI Skills
+###  5.3. <a name='TheCLISkills'></a>The CLI Skills
 
 Stateless shell scripts. Each is a thin `curl` wrapper that hits the daemon and pipes raw JSON to stdout:
 
@@ -130,9 +156,9 @@ Stateless shell scripts. Each is a thin `curl` wrapper that hits the daemon and 
 
 ---
 
-## Agent integration
+##  6. <a name='Agentintegration'></a>Agent integration
 
-### gemini-cli
+###  6.1. <a name='gemini-cli'></a>gemini-cli
 
 `gemini-cli` supports a native subagent architecture where the main orchestrator agent can delegate to specialist agents with isolated context windows. Subagent interactions happen in entirely separate context loops — the orchestrator's token history is not polluted by the specialist's deep retrieval work.
 
@@ -154,7 +180,7 @@ Enable experimental agents in your `settings.json`:
 }
 ```
 
-### Claude Code
+###  6.2. <a name='ClaudeCode'></a>Claude Code
 
 Claude Code discovers skills from `~/.claude/skills/` (personal) or `.claude/skills/` (project). The same `rlm/` bundle works without modification:
 
@@ -164,7 +190,7 @@ task install
 
 Claude reads `SKILL.md` when the skill is triggered and executes the scripts via bash. Script output enters the context window; script code does not. (`task install` copies rather than symlinks because Claude Code does not follow symlinks into skill directories.)
 
-### Source namespacing
+###  6.3. <a name='Sourcenamespacing'></a>Source namespacing
 
 The daemon is shared. Multiple agents, multiple master LLMs, multiple projects can all write to and read from the same instance simultaneously. To prevent cross-contamination, every document and summary is tagged with a `source` identifier.
 
@@ -178,7 +204,7 @@ CERCLE_SOURCE="" rlm-search-lexical "authentication"
 
 ---
 
-## Quick start
+##  7. <a name='Quickstart'></a>Quick start
 
 **Requirements:** Go 1.21+, CGO enabled
 
@@ -213,7 +239,7 @@ A minimal web UI is available at `http://127.0.0.1:7770/ui/` for verifying the d
 
 ---
 
-## API reference
+##  8. <a name='APIreference'></a>API reference
 
 | Method | Path | Description |
 |---|---|---|
@@ -233,15 +259,15 @@ Full request/response schemas: [`rlm/REFERENCE.md`](rlm/REFERENCE.md).
 
 ---
 
-## Supported languages for structural parsing
+##  9. <a name='Supportedlanguagesforstructuralparsing'></a>Supported languages for structural parsing
 
 Go, Python, JavaScript/TypeScript. All other text-based files (Markdown, JSON, YAML, shell scripts, TOML) are indexed for lexical search only.
 
 ---
 
-## Tradeoffs and known limitations
+##  10. <a name='Tradeoffsandknownlimitations'></a>Tradeoffs and known limitations
 
-### Deliberate tradeoffs
+###  10.1. <a name='Deliberatetradeoffs'></a>Deliberate tradeoffs
 
 **Bag-of-words semantic search.** Embeddings are produced by tokenising text and averaging pre-trained static word vectors. Word order and deep contextual meaning are lost — "handle error" and "error handle" produce the same vector. This is a conscious tradeoff: no GPU, no external embedding service, no network dependency, startup in under a second. For code retrieval the loss is acceptable because identifiers and type names carry most of the signal anyway.
 
@@ -249,7 +275,7 @@ Go, Python, JavaScript/TypeScript. All other text-based files (Markdown, JSON, Y
 
 **CGO dependency.** Both `mattn/go-sqlite3` (FTS5, WAL) and `smacker/go-tree-sitter` (AST parsing) require CGO. This means a C compiler must be present at build time and cross-compilation is not straightforward. The alternative — a pure-Go SQLite driver — lacks FTS5 support; the alternative to go-tree-sitter does not exist. The tradeoff is accepted.
 
-### Known limitations
+###  10.2. <a name='Knownlimitations'></a>Known limitations
 
 **No file system watching.** Re-indexing must be triggered manually (`POST /index` or `task index`). In agent workflows this is a non-issue: the orchestrator calls `POST /index` before handing off to a subagent, so the subagent always sees a current index. For interactive use the index drifts between manual runs.
 
@@ -261,7 +287,7 @@ To wipe the database and start fresh: `task reset` kills the daemon, deletes `~/
 
 ---
 
-## Acknowledgements
+##  11. <a name='Acknowledgements'></a>Acknowledgements
 
 - [SQLite FTS5](https://www.sqlite.org/fts5.html) — full-text search engine powering lexical search
 - [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) — incremental parsing library powering structural search
