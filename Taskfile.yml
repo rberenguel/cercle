@@ -74,6 +74,17 @@ tasks:
       - cp ./rlm/agent.md ~/.gemini/agents/rlm-worker.md
       - echo "Installed to ~/.claude/skills/rlm, ~/.gemini/skills/rlm, ~/.gemini/agents/rlm-worker.md"
 
+  install-v2:
+    desc: Copy v2 skill into Claude and Gemini skills directories as headless-rlm
+    cmds:
+      - mkdir -p ~/.claude/skills
+      - rm -rf ~/.claude/skills/headless-rlm
+      - cp -r ./v2/skills ~/.claude/skills/headless-rlm
+      - mkdir -p ~/.gemini/skills
+      - rm -rf ~/.gemini/skills/headless-rlm
+      - cp -r ./v2/skills ~/.gemini/skills/headless-rlm
+      - echo "Installed v2 skill to ~/.claude/skills/headless-rlm and ~/.gemini/skills/headless-rlm"
+
   validate-skill:
     desc: Validate the rlm skill structure (agent.md warning at root is expected and harmless)
     cmds:
@@ -92,6 +103,13 @@ tasks:
     desc: Remove build artifacts
     cmds:
       - rm -rf bin
+
+  v2:
+    desc: Build the v2 architecture binary (cercle-lite) and install to ~/.cercle
+    cmds:
+      - mkdir -p ~/.cercle
+      - cd v2 && go build -o ~/.cercle/cercle-lite .
+      - echo "Installed v2 to ~/.cercle/cercle-lite"
 
   zip-v2:
     desc: Create a release zip for the v2 architecture
