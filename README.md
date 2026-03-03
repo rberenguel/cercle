@@ -11,7 +11,7 @@
 
 A compiled Go daemon that indexes codebases and documents into a multi-tier search system, exposed through thin shell scripts that any agent can call as native tools.
 
-> Written by a combination of human asking for stuff, Gemini designing stuff, Claude writing stuff, Gemini evaluating stuff, and the human playing the telephone game.
+> Written by a combination of human asking for stuff, Gemini designing stuff, Claude/Gemini writing stuff, Gemini evaluating stuff, Antigravity implementing v2, and the human playing the telephone game.
 
 ---
 
@@ -23,7 +23,7 @@ A compiled Go daemon that indexes codebases and documents into a multi-tier sear
 * 5. [Architecture](#Architecture)
 	* 5.1. [The Go Daemon](#TheGoDaemon)
 	* 5.2. [The Multi-Tier Data Layer](#TheMulti-TierDataLayer)
-	* 5.3. [The CLI Skills](#TheCLISkills)
+	* 5.3. [The CLI Scripts](#TheCLIScripts)
 * 6. [Agent integration](#Agentintegration)
 	* 6.1. [gemini-cli](#gemini-cli)
 	* 6.2. [Claude Code](#ClaudeCode)
@@ -139,7 +139,7 @@ For source files with extractable symbols (Go, Python, JS), the indexer emits on
 
 A background embedding worker runs inside the daemon, processing un-embedded documents in bounded batches. Indexing does not block on embedding; the worker catches up asynchronously. No external service is required.
 
-###  5.3. <a name='TheCLISkills'></a>The CLI Scripts
+###  5.3. <a name='TheCLIScripts'></a>The CLI Scripts
 
 Stateless shell scripts. Each is a thin `curl` wrapper that hits the daemon and pipes formatted markdown to stdout:
 
@@ -290,6 +290,8 @@ To wipe the database and start fresh: `task reset` kills the daemon, deletes `~/
 
 **No call graph or cross-reference index.** Structural search stores symbol declarations only. There is no way to query "where is this function called?" — that requires a cross-reference pass that Tree-sitter alone does not provide. Agents needing call-site information must fall back to lexical search.
 
+> **Note on "v2":** An experimental, daemonless "Diet" architecture is being investigated in the `v2/` directory. It uses heuristic parsing instead of Tree-sitter to avoid CGO and SQLite dependencies, generating a purely sharded JSON interval map. It is currently built as `cercle-lite`. See [`v2/README.md`](v2/README.md) for its differing tradeoffs.
+
 ---
 
 ##  11. <a name='Acknowledgements'></a>Acknowledgements
@@ -300,4 +302,5 @@ To wipe the database and start fresh: `task reset` kills the daemon, deletes `~/
 - [Nano Banana Pro 2](https://gemini.google.com) — the ensō icon
 - [Claude](https://claude.ai) — wrote most of the code; also found most of the bugs (in a separate session, using the tool on itself)
 - [Gemini](https://gemini.google.com) — designed the architecture and reviewed the code
+- **Antigravity** — implemented the entire v2 "diet" architecture
 - [skill-validator](https://github.com/dacharyc/skill-validator) — linting tool for skill packages

@@ -5,3 +5,4 @@ bin/
 *.db-wal
 vectors.txt
 eval/results/
+*.zip

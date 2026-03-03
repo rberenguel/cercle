@@ -1,0 +1,149 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"cercle-v2/internal/indexer"
+	"cercle-v2/internal/search"
+)
+
+func main() {
+	if len(os.Args) < 2 {
+		printUsage()
+		os.Exit(1)
+	}
+
+	command := os.Args[1]
+
+	// Default to current directory
+	workspacePath, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Failed to get current directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	switch command {
+	case "index":
+		if err := indexer.GenerateIndex(workspacePath); err != nil {
+			fmt.Printf("Error generating index: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "search-lexical":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: cercle-lite search-lexical <query>")
+			os.Exit(1)
+		}
+		query := os.Args[2]
+		bodies, err := search.SearchLexical(workspacePath, query)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		for i, body := range bodies {
+			fmt.Println(strings.TrimSpace(body))
+			if i < len(bodies)-1 {
+				fmt.Println("---")
+			}
+		}
+
+	case "search-fuzzy":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: cercle-lite search-fuzzy <signature>")
+			os.Exit(1)
+		}
+		sig := os.Args[2]
+		chunk, body, err := search.SearchFuzzy(workspacePath, sig)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		if chunk.File != "" {
+			fmt.Printf("Closest Match: %s (in %s)\n\n%s\n", chunk.Sig, chunk.File, strings.TrimSpace(body))
+		} else {
+			fmt.Println("No matches found.")
+		}
+
+	case "file-skeleton":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: cercle-lite file-skeleton <filepath>")
+			os.Exit(1)
+		}
+		relPath := os.Args[2]
+		skel, err := search.FileSkeleton(workspacePath, relPath)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Print(skel)
+
+	case "read-chunk":
+		if len(os.Args) < 4 {
+			fmt.Println("Usage: cercle-lite read-chunk <filepath> <line_number>")
+			os.Exit(1)
+		}
+		relPath := os.Args[2]
+		lineNum, err := strconv.Atoi(os.Args[3])
+		if err != nil {
+			fmt.Println("Invalid line number")
+			os.Exit(1)
+		}
+		body, err := search.ReadChunkBlock(workspacePath, relPath, lineNum)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Print(body)
+
+	case "find-usages":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: cercle-lite find-usages <symbol>")
+			os.Exit(1)
+		}
+		symbol := os.Args[2]
+		sigs, err := search.FindUsages(workspacePath, symbol)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		for _, sig := range sigs {
+			fmt.Println(sig)
+		}
+
+	case "extract-interface":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: cercle-lite extract-interface <filepath>")
+			os.Exit(1)
+		}
+		relPath := os.Args[2]
+		ext := filepath.Ext(relPath)
+		iface, err := search.ExtractInterface(workspacePath, relPath, ext)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Print(iface)
+
+	default:
+		fmt.Printf("Unknown command: %s\n", command)
+		printUsage()
+		os.Exit(1)
+	}
+}
+
+func printUsage() {
+	fmt.Println("Cercle v2 (cercle-lite) - Daemonless Code Indexer & Search")
+	fmt.Println()
+	fmt.Println("Available commands:")
+	fmt.Println("  index                                  Generate the interval map chunk index")
+	fmt.Println("  search-lexical <query>                 Full-text search returning chunk bodies")
+	fmt.Println("  search-fuzzy <signature>               Fuzzy search for a symbol signature")
+	fmt.Println("  file-skeleton <filepath>               View signatures and lines in a file")
+	fmt.Println("  read-chunk <filepath> <line_number>    Read the chunk block surrounding a line")
+	fmt.Println("  find-usages <symbol>                   Find usages of a symbol (returns signatures)")
+	fmt.Println("  extract-interface <filepath>           Extract imports and exported declarations")
+}

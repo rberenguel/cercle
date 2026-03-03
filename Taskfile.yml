@@ -92,3 +92,10 @@ tasks:
     desc: Remove build artifacts
     cmds:
       - rm -rf bin
+
+  zip-v2:
+    desc: Create a release zip for the v2 architecture
+    cmds:
+      - rm -f cercle-v2.zip
+      - zip -r cercle-v2.zip v2/ -x "v2/cercle-lite"
+      - echo "Created cercle-v2.zip"
