@@ -40,7 +40,10 @@ func loadChunksForFile(workspacePath, relFilePath string) ([]models.Chunk, error
 
 	data, err := os.ReadFile(shardPath)
 	if err != nil {
-		return nil, err // File might not exist if shard is empty
+		if os.IsNotExist(err) {
+			return nil, nil // Shard doesn't exist = no chunks
+		}
+		return nil, err
 	}
 
 	var allChunks []models.Chunk

@@ -15,10 +15,10 @@ Output is pure, compact text—designed specifically for LLM contexts.
 Invoke these via `~/.cercle/cercle-lite <command> [args...]` from the root of a project.
 
 - `index` — Traverses the codebase (respecting `.gitignore`), parses Go, Python, JS/TS, C++, CSS, HTML, and generates JSON chunk map shards mapped cleanly in `~/.cercle/indexes/`. Re-run this whenever you modify the codebase.
-- `search-lexical <query>` — Full-text search using `rg`. Instead of returning single lines, this looks up the matches in the chunk map and returns the **entire function/class body** surrounding the matches. Deduplicated automatically.
-- `search-fuzzy <signature>` — Fuzzy searches across the entire vocabulary of the chunk map using pure-Go Levenshtein distance. Use this if you know a symbol name but aren't sure of the exact spelling or capitalization.
-- `file-skeleton <filepath>` — Returns a structural view of a specific file (just the line numbers and signatures of functions/classes/blocks). Best for quickly orienting yourself in a new file without blowing up your context window.
-- `read-chunk <filepath> <line_number>` — Reads exactly the code block enclosing a specific line number. Use this after `file-skeleton` to drill down into a specific function.
+- `search-lexical <query>` — Full-text search using `rg`. Evaluates the query implicitly as **PCRE/Rust regex** (so `generate|tint` works! **Do NOT escape pipes like `\|`**). This command matches the query in the chunk map and returns the **entire function/class body** surrounding the matches, capped at **100 lines** per chunk to prevent context explosion. Deduplicated automatically.
+- `search-fuzzy <signature>` — Fuzzy searches across the entire vocabulary of the chunk map using pure-Go Levenshtein distance. Capped at **100 lines** of output. Use this if you know a symbol name but aren't sure of the exact spelling or capitalization.
+- `file-skeleton <filepath>` — Returns a structural view of a specific file (just the line numbers and signatures of functions/classes/blocks). Absolute or relative paths are supported. Best for quickly orienting yourself without blowing up your context window.
+- `read-chunk <filepath> <line_number>` — Reads exactly the code block enclosing a specific line number. Capped at **1000 lines**. Use this after `file-skeleton` or after a truncated `search-lexical` result to drill into a specific dense function.
 - `find-usages <symbol>` — Uses `rg -w` to strictly find usages of a symbol, but maps backwards up the file hierarchy using the index to emit *only* the calling function signature names. Extreme token efficiency.
 - `extract-interface <filepath>` — Extracts only the imports/includes and exported declarations (`func`, `export`, `#include`, `def`, `class`) for a file. Perfect for understanding file contracts.
 

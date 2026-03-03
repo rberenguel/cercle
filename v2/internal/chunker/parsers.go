@@ -19,7 +19,7 @@ var (
 	goTypeRegex = regexp.MustCompile(`^type\s+`)
 )
 
-func (p *goParser) processLine(filePath string, lineNum int, lineText string) *models.Chunk {
+func (p *goParser) processLine(filePath string, lineNum int, lineText string) []models.Chunk {
 	if !p.inChunk {
 		if goFuncRegex.MatchString(lineText) || goTypeRegex.MatchString(lineText) {
 			p.inChunk = true
@@ -35,19 +35,19 @@ func (p *goParser) processLine(filePath string, lineNum int, lineText string) *m
 
 		if p.braceCount == 0 && strings.Contains(lineText, "}") {
 			p.inChunk = false
-			return &models.Chunk{
+			return []models.Chunk{{
 				File:  filePath,
 				Start: p.startLine,
 				End:   lineNum,
 				Sig:   p.sig,
-			}
+			}}
 		}
 	}
 
 	return nil
 }
 
-func (p *goParser) finalize(filePath string, totalLines int) *models.Chunk {
+func (p *goParser) finalize(filePath string, totalLines int) []models.Chunk {
 	return nil // typically missing a closing brace means syntax error
 }
 
@@ -60,7 +60,7 @@ type pythonParser struct {
 
 var pyDefClassRegex = regexp.MustCompile(`^(?:async\s+)?(?:def|class)\s+`)
 
-func (p *pythonParser) processLine(filePath string, lineNum int, lineText string) *models.Chunk {
+func (p *pythonParser) processLine(filePath string, lineNum int, lineText string) []models.Chunk {
 	trimmed := strings.TrimSpace(lineText)
 	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 		return nil
@@ -81,12 +81,12 @@ func (p *pythonParser) processLine(filePath string, lineNum int, lineText string
 	if p.inChunk {
 		if indent <= p.startIndent && !pyDefClassRegex.MatchString(trimmed) {
 			// Found the end of the Python block (different block starting at same/lower indent)
-			res := &models.Chunk{
+			res := []models.Chunk{{
 				File:  filePath,
 				Start: p.startLine,
 				End:   lineNum - 1,
 				Sig:   p.sig,
-			}
+			}}
 
 			// We returned to same/lower indent, check if this new line starts a NEW block
 			if pyDefClassRegex.MatchString(trimmed) {
@@ -104,65 +104,76 @@ func (p *pythonParser) processLine(filePath string, lineNum int, lineText string
 	return nil
 }
 
-func (p *pythonParser) finalize(filePath string, totalLines int) *models.Chunk {
+func (p *pythonParser) finalize(filePath string, totalLines int) []models.Chunk {
 	if p.inChunk {
 		p.inChunk = false
-		return &models.Chunk{
+		return []models.Chunk{{
 			File:  filePath,
 			Start: p.startLine,
 			End:   totalLines,
 			Sig:   p.sig,
-		}
+		}}
 	}
 	return nil
 }
 
-type jsParser struct {
-	inChunk    bool
+type jsChunkInfo struct {
 	startLine  int
 	braceCount int
 	sig        string
 }
 
-// ^(export\s+)?(async\s+)?function\s+\w+
-// ^(export\s+)?const\s+\w+\s*=\s*(\(.*\)|\w+)\s*=>
-// ^(export\s+)?class\s+\w+
-var (
-	jsFuncRegex  = regexp.MustCompile(`^(?:export\s+)?(?:async\s+)?function\s+\w+`)
-	jsConstRegex = regexp.MustCompile(`^(?:export\s+)?const\s+\w+\s*=\s*(?:\(.*?\)|\w+)\s*=>`)
-	jsClassRegex = regexp.MustCompile(`^(?:export\s+)?class\s+\w+`)
-)
-
-func (p *jsParser) processLine(filePath string, lineNum int, lineText string) *models.Chunk {
-	trimmed := strings.TrimSpace(lineText)
-	if !p.inChunk {
-		if jsFuncRegex.MatchString(trimmed) || jsConstRegex.MatchString(trimmed) || jsClassRegex.MatchString(trimmed) {
-			p.inChunk = true
-			p.startLine = lineNum
-			p.braceCount = 0
-			p.sig = trimmed
-		}
-	}
-
-	if p.inChunk {
-		p.braceCount += strings.Count(lineText, "{")
-		p.braceCount -= strings.Count(lineText, "}")
-
-		if p.braceCount == 0 && strings.Contains(lineText, "}") {
-			p.inChunk = false
-			return &models.Chunk{
-				File:  filePath,
-				Start: p.startLine,
-				End:   lineNum,
-				Sig:   p.sig,
-			}
-		}
-	}
-
-	return nil
+type jsParser struct {
+	stack      []jsChunkInfo
+	braceCount int
 }
 
-func (p *jsParser) finalize(filePath string, totalLines int) *models.Chunk {
+var (
+	jsFuncRegex   = regexp.MustCompile(`^\s*(?:export\s+)?(?:async\s+)?function\s+\w+`)
+	jsConstRegex  = regexp.MustCompile(`^\s*(?:export\s+)?(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?(?:\(.*?\)|\w+)\s*=>`)
+	jsClassRegex  = regexp.MustCompile(`^\s*(?:export\s+)?class\s+\w+`)
+	jsMethodRegex = regexp.MustCompile(`^\s*(?:async\s+)?\w+\s*\([^)]*\)\s*\{`)
+)
+
+func (p *jsParser) processLine(filePath string, lineNum int, lineText string) []models.Chunk {
+	var completed []models.Chunk
+	trimmed := strings.TrimSpace(lineText)
+
+	if jsFuncRegex.MatchString(trimmed) || jsConstRegex.MatchString(trimmed) || jsClassRegex.MatchString(trimmed) || jsMethodRegex.MatchString(trimmed) {
+		sig := strings.TrimSuffix(trimmed, "{")
+		sig = strings.TrimSpace(sig)
+
+		p.stack = append(p.stack, jsChunkInfo{
+			startLine:  lineNum,
+			braceCount: p.braceCount,
+			sig:        sig,
+		})
+	}
+
+	p.braceCount += strings.Count(lineText, "{")
+	p.braceCount -= strings.Count(lineText, "}")
+
+	if p.braceCount >= 0 && len(p.stack) > 0 {
+		var active []jsChunkInfo
+		for _, info := range p.stack {
+			if p.braceCount <= info.braceCount && strings.Contains(lineText, "}") {
+				completed = append(completed, models.Chunk{
+					File:  filePath,
+					Start: info.startLine,
+					End:   lineNum,
+					Sig:   info.sig,
+				})
+			} else {
+				active = append(active, info)
+			}
+		}
+		p.stack = active
+	}
+
+	return completed
+}
+
+func (p *jsParser) finalize(filePath string, totalLines int) []models.Chunk {
 	return nil
 }
 
@@ -178,7 +189,7 @@ var (
 	cppClassRegex = regexp.MustCompile(`^(?:class|struct)\s+\w+`)
 )
 
-func (p *cppParser) processLine(filePath string, lineNum int, lineText string) *models.Chunk {
+func (p *cppParser) processLine(filePath string, lineNum int, lineText string) []models.Chunk {
 	trimmed := strings.TrimSpace(lineText)
 
 	if !p.inChunk {
@@ -202,18 +213,18 @@ func (p *cppParser) processLine(filePath string, lineNum int, lineText string) *
 
 		if p.braceCount == 0 && strings.Contains(lineText, "}") {
 			p.inChunk = false
-			return &models.Chunk{
+			return []models.Chunk{{
 				File:  filePath,
 				Start: p.startLine,
 				End:   lineNum,
 				Sig:   p.sig,
-			}
+			}}
 		}
 	}
 	return nil
 }
 
-func (p *cppParser) finalize(filePath string, totalLines int) *models.Chunk {
+func (p *cppParser) finalize(filePath string, totalLines int) []models.Chunk {
 	return nil
 }
 
@@ -226,7 +237,7 @@ type cssParser struct {
 
 var cssSelectorRegex = regexp.MustCompile(`^[\.#\w][^{]+{\s*$`)
 
-func (p *cssParser) processLine(filePath string, lineNum int, lineText string) *models.Chunk {
+func (p *cssParser) processLine(filePath string, lineNum int, lineText string) []models.Chunk {
 	trimmed := strings.TrimSpace(lineText)
 	if !p.inChunk {
 		if cssSelectorRegex.MatchString(trimmed) {
@@ -244,19 +255,19 @@ func (p *cssParser) processLine(filePath string, lineNum int, lineText string) *
 
 		if p.braceCount <= 0 && strings.Contains(lineText, "}") {
 			p.inChunk = false
-			return &models.Chunk{
+			return []models.Chunk{{
 				File:  filePath,
 				Start: p.startLine,
 				End:   lineNum,
 				Sig:   p.sig,
-			}
+			}}
 		}
 	}
 
 	return nil
 }
 
-func (p *cssParser) finalize(filePath string, totalLines int) *models.Chunk {
+func (p *cssParser) finalize(filePath string, totalLines int) []models.Chunk {
 	return nil
 }
 
@@ -269,7 +280,7 @@ type htmlParser struct {
 
 var htmlOuterTagRegex = regexp.MustCompile(`(?i)<(script|style|main|div\s+id=.*?)>`)
 
-func (p *htmlParser) processLine(filePath string, lineNum int, lineText string) *models.Chunk {
+func (p *htmlParser) processLine(filePath string, lineNum int, lineText string) []models.Chunk {
 	// A simple tag parser that looks for closing tags
 	if !p.inChunk {
 		matches := htmlOuterTagRegex.FindStringSubmatch(lineText)
@@ -297,12 +308,12 @@ func (p *htmlParser) processLine(filePath string, lineNum int, lineText string) 
 	if p.inChunk {
 		if p.tagName != "" && strings.Contains(strings.ToLower(lineText), p.tagName) {
 			p.inChunk = false
-			return &models.Chunk{
+			return []models.Chunk{{
 				File:  filePath,
 				Start: p.startLine,
 				End:   lineNum,
 				Sig:   p.sig,
-			}
+			}}
 		}
 	}
 
@@ -311,15 +322,15 @@ func (p *htmlParser) processLine(filePath string, lineNum int, lineText string) 
 	return nil
 }
 
-func (p *htmlParser) finalize(filePath string, totalLines int) *models.Chunk {
+func (p *htmlParser) finalize(filePath string, totalLines int) []models.Chunk {
 	// Close any open tags if reach EOF
 	if p.inChunk {
-		return &models.Chunk{
+		return []models.Chunk{{
 			File:  filePath,
 			Start: p.startLine,
 			End:   totalLines,
 			Sig:   p.sig,
-		}
+		}}
 	}
 	return nil
 }

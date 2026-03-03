@@ -16,7 +16,8 @@ import (
 // SearchLexical uses `rg` to find matches, determines the enclosing chunk,
 // and returns the deduplicated chunk bodies.
 func SearchLexical(workspacePath, query string) ([]string, error) {
-	cmd := exec.Command("rg", "-n", query)
+	// Use -e to explicitly allow regex patterns
+	cmd := exec.Command("rg", "-n", "-e", query)
 	cmd.Dir = workspacePath
 
 	var out bytes.Buffer
@@ -71,7 +72,8 @@ func SearchLexical(workspacePath, query string) ([]string, error) {
 			chunkKey := fmt.Sprintf("%s:%d-%d", matchedChunk.File, matchedChunk.Start, matchedChunk.End)
 			if !seenChunks[chunkKey] {
 				seenChunks[chunkKey] = true
-				body, err := ReadChunkBody(workspacePath, *matchedChunk)
+				// Limit output to avoid context explosion on giant files
+				body, err := ReadChunkBody(workspacePath, *matchedChunk, 100)
 				if err == nil {
 					header := fmt.Sprintf("// File: %s (L%d-L%d)\n", matchedChunk.File, matchedChunk.Start, matchedChunk.End)
 					chunkBodies = append(chunkBodies, header+body)
@@ -84,7 +86,7 @@ func SearchLexical(workspacePath, query string) ([]string, error) {
 }
 
 // ReadChunkBody reads the physical lines of code for a given chunk
-func ReadChunkBody(workspacePath string, chunk models.Chunk) (string, error) {
+func ReadChunkBody(workspacePath string, chunk models.Chunk, maxLines int) (string, error) {
 	absPath := filepath.Join(workspacePath, chunk.File)
 	file, err := os.Open(absPath)
 	if err != nil {
@@ -95,13 +97,19 @@ func ReadChunkBody(workspacePath string, chunk models.Chunk) (string, error) {
 	var sb strings.Builder
 	scanner := bufio.NewScanner(file)
 	currentLine := 1
+	linesRead := 0
 
 	for scanner.Scan() {
 		if currentLine > chunk.End {
 			break
 		}
 		if currentLine >= chunk.Start {
+			if linesRead >= maxLines {
+				sb.WriteString(fmt.Sprintf("\n... (truncated after %d lines) ...\n", maxLines))
+				break
+			}
 			sb.WriteString(scanner.Text() + "\n")
+			linesRead++
 		}
 		currentLine++
 	}

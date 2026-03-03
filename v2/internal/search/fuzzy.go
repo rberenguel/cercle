@@ -34,7 +34,7 @@ func SearchFuzzy(workspacePath, signature string) (models.Chunk, string, error) 
 		}
 	}
 
-	body, err := ReadChunkBody(workspacePath, bestChunk)
+	body, err := ReadChunkBody(workspacePath, bestChunk, 100)
 	return bestChunk, body, err
 }
 

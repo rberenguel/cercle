@@ -45,12 +45,11 @@ func ParseFile(filePath string) ([]models.Chunk, error) {
 
 // parser defines the interface for language-specific heuristic parsing.
 type parser interface {
-	// processLine takes the 1-indexed line number, the raw line text, and returns true if a chunk completed.
-	// It may optionally return the completed chunk.
-	processLine(filePath string, lineNum int, lineText string) *models.Chunk
+	// processLine takes the 1-indexed line number, the raw line text, and returns a slice of completed chunks.
+	processLine(filePath string, lineNum int, lineText string) []models.Chunk
 
 	// finalize is called cleanly at the end of the file in case a chunk was left open
-	finalize(filePath string, totalLines int) *models.Chunk
+	finalize(filePath string, totalLines int) []models.Chunk
 }
 
 func parseLines(filePath string, r io.Reader, p parser) ([]models.Chunk, error) {
@@ -60,8 +59,8 @@ func parseLines(filePath string, r io.Reader, p parser) ([]models.Chunk, error) 
 
 	for scanner.Scan() {
 		lineText := scanner.Text()
-		if chunk := p.processLine(filePath, lineNum, lineText); chunk != nil {
-			chunks = append(chunks, *chunk)
+		if newChunks := p.processLine(filePath, lineNum, lineText); len(newChunks) > 0 {
+			chunks = append(chunks, newChunks...)
 		}
 		lineNum++
 	}
@@ -70,8 +69,8 @@ func parseLines(filePath string, r io.Reader, p parser) ([]models.Chunk, error) 
 		return chunks, err
 	}
 
-	if chunk := p.finalize(filePath, lineNum-1); chunk != nil {
-		chunks = append(chunks, *chunk)
+	if finalChunks := p.finalize(filePath, lineNum-1); len(finalChunks) > 0 {
+		chunks = append(chunks, finalChunks...)
 	}
 
 	// Fallback for HTML or files with very few chunks but many lines

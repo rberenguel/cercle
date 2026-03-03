@@ -37,3 +37,54 @@ Agents can call the `cercle-lite` binary with various subcommands:
 - `read-chunk <filepath> <line_number>`: Returns exactly the code block enclosing a line.
 - `find-usages <symbol>`: Finds usages and returns *only* the signatures of calling functions.
 - `extract-interface <filepath>`: Extracts imports and exported types/functions.
+
+## Test with a specific codebase
+
+During a real-world test on a complex ~1300 line JS codebase ([destrier](https://github.com/rberenguel/destrier)), Claude provided excellent feedback on `cercle-lite`.
+
+For context, the LLM was given the following ambitious prompt to implement a two-player versus mode:
+
+> I want you to create a very ambitious new extension for this game: two player versus mode. Make sure to read the @README.md completely
+>
+> Two player vs needs new menu selection, needs configurable controls for the second player, handling of more than 1 external controller via web bluetooth (currently we restrict to 1 IIRC), a different way of handling "waves", smart positioning of the two ships, coloring each differently… Several things.
+>
+> This is hard, and I want to see how well you handle this (which I have delayed for almost a year!)
+
+The workspace consisted of actually over 60 files and roughly 134,000 lines of code (including the `lib/` folder, as `cercle-lite` indexes all non-gitignored files):
+
+```text
+--------------------------------------------------------------------------------
+ Language             Files        Lines        Blank      Comment         Code
+--------------------------------------------------------------------------------
+ JavaScript              54       132623         1751         8510       122362
+ CSS                      4         1090          126           21          943
+ HTML                     3          200            1            3          196
+ Markdown                 2          158           49            0          109
+ Plain Text               1           93           18            0           75
+ JSON                     1           35            0            0           35
+ Bourne Shell             1           21            6            1           14
+--------------------------------------------------------------------------------
+ Total                   66       134220         1951         8535       123734
+--------------------------------------------------------------------------------
+```
+
+Claude provided the following "testimonial" regarding the efficiency of `cercle-lite` for this task:
+
+> **What worked great:**
+> - `file-skeleton` was the killer feature. Getting just function signatures and line ranges for a 1300-line file like destrier.js or scene.js in one call, then drilling in with `read-chunk`, was much more efficient than reading whole files.
+> - `search-lexical` returning full function bodies around matches (not just lines) meant I rarely needed follow-up reads.
+> - The `find-usages` → `file-skeleton` → `read-chunk` workflow felt natural and fast.
+>
+> **Bottom line:** For a codebase of this size (~60 files), it probably saved 30-40% context vs naive file reading. The `file-skeleton` → `read-chunk` pattern is particularly strong.
+
+### Context Retention Metrics
+
+To quantify the context savings, the remaining context window capacity was measured at two critical points during the agent's lifetime: just after asking clarifying questions (exploring the repo) and just after requesting plan approval.
+
+| Tooling Approach     | Context Remaining (Clarifying Questions) | Context Remaining (Plan Approval) |
+| :---                 | :---:                                    | :---:                             |
+| **Cercle v1**        | 63%                                      | 48%                               |
+| **Cercle v2 (lite)** | 59%                                      | 47%                               |
+| **Vanilla**          | 41%                                      | 38%                               |
+
+*Note: Vanilla refers to the agent relying solely on native "read file" tools. Both Cercle v1 and v2 effectively preserved ~20% more context capacity heading into the design phase than native tools.*

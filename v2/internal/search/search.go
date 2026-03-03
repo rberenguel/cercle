@@ -16,6 +16,11 @@ import (
 
 // FileSkeleton returns line numbers and signatures for a specific file from the chunk map.
 func FileSkeleton(workspacePath, relFilePath string) (string, error) {
+	if filepath.IsAbs(relFilePath) {
+		if rel, err := filepath.Rel(workspacePath, relFilePath); err == nil {
+			relFilePath = rel
+		}
+	}
 	fileChunks, err := loadChunksForFile(workspacePath, relFilePath)
 	if err != nil {
 		return "", err
@@ -30,6 +35,11 @@ func FileSkeleton(workspacePath, relFilePath string) (string, error) {
 
 // ReadChunkBlock looks up the line number and returns the specific code block.
 func ReadChunkBlock(workspacePath, relFilePath string, lineNum int) (string, error) {
+	if filepath.IsAbs(relFilePath) {
+		if rel, err := filepath.Rel(workspacePath, relFilePath); err == nil {
+			relFilePath = rel
+		}
+	}
 	fileChunks, err := loadChunksForFile(workspacePath, relFilePath)
 	if err != nil {
 		return "", err
@@ -47,7 +57,7 @@ func ReadChunkBlock(workspacePath, relFilePath string, lineNum int) (string, err
 		return "", fmt.Errorf("no chunk found covering line %d", lineNum)
 	}
 
-	return ReadChunkBody(workspacePath, *matchedChunk)
+	return ReadChunkBody(workspacePath, *matchedChunk, 1000)
 }
 
 // FindUsages uses `rg -w` to find usages, maps to the Chunk Map, and returns only caller signatures.
@@ -107,6 +117,11 @@ func FindUsages(workspacePath, symbol string) ([]string, error) {
 
 // ExtractInterface returns imports/includes and exported declarations for a file.
 func ExtractInterface(workspacePath, relFilePath string, language string) (string, error) {
+	if filepath.IsAbs(relFilePath) {
+		if rel, err := filepath.Rel(workspacePath, relFilePath); err == nil {
+			relFilePath = rel
+		}
+	}
 	absPath := filepath.Join(workspacePath, relFilePath)
 	file, err := os.Open(absPath)
 	if err != nil {
