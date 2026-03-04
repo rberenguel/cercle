@@ -8,19 +8,84 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
 	"cercle-v2/internal/models"
 )
 
-// FileSkeleton returns line numbers and signatures for a specific file from the chunk map.
+// FileSkeleton returns line numbers and signatures for a file or, if given a directory,
+// all files under that directory from the chunk map.
 func FileSkeleton(workspacePath, relFilePath string) (string, error) {
 	if filepath.IsAbs(relFilePath) {
 		if rel, err := filepath.Rel(workspacePath, relFilePath); err == nil {
 			relFilePath = rel
 		}
 	}
+
+	absPath := filepath.Join(workspacePath, relFilePath)
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return "", err
+	}
+
+	if !info.IsDir() {
+		return fileSkeletonSingle(workspacePath, relFilePath)
+	}
+
+	// Directory: load all chunks and filter by prefix.
+	allChunks, err := loadAllChunks(workspacePath)
+	if err != nil {
+		return "", err
+	}
+
+	prefix := ""
+	if relFilePath != "." {
+		prefix = strings.TrimSuffix(relFilePath, "/") + "/"
+	}
+
+	byFile := make(map[string][]models.Chunk)
+	for _, chunk := range allChunks {
+		if prefix == "" || strings.HasPrefix(chunk.File, prefix) {
+			byFile[chunk.File] = append(byFile[chunk.File], chunk)
+		}
+	}
+
+	files := make([]string, 0, len(byFile))
+	for f := range byFile {
+		files = append(files, f)
+	}
+	sort.Strings(files)
+
+	// Estimate output lines: 1 header + len(chunks) per file, plus blank lines between files.
+	totalSymbols := 0
+	for _, chunks := range byFile {
+		totalSymbols += len(chunks)
+	}
+	estimated := totalSymbols + len(files) + max(len(files)-1, 0)
+	if estimated > maxLines() {
+		symbolsByFile := make(map[string]int, len(byFile))
+		for f, chunks := range byFile {
+			symbolsByFile[f] = len(chunks)
+		}
+		return skeletonOverflow(symbolsByFile, totalSymbols, len(files), estimated), nil
+	}
+
+	var sb strings.Builder
+	for i, f := range files {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(f + ":\n")
+		for _, chunk := range byFile[f] {
+			sb.WriteString(fmt.Sprintf("  %d-%d: %s\n", chunk.Start, chunk.End, chunk.Sig))
+		}
+	}
+	return sb.String(), nil
+}
+
+func fileSkeletonSingle(workspacePath, relFilePath string) (string, error) {
 	fileChunks, err := loadChunksForFile(workspacePath, relFilePath)
 	if err != nil {
 		return "", err
@@ -77,6 +142,8 @@ func FindUsages(workspacePath, symbol string) ([]string, error) {
 	seenSigs := make(map[string]bool)
 	var signatures []string
 
+	sigsByFile := make(map[string]int)
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -89,8 +156,7 @@ func FindUsages(workspacePath, symbol string) ([]string, error) {
 		}
 
 		relPath := parts[0]
-		lineNumStr := parts[1]
-		lineNum, err := strconv.Atoi(lineNumStr)
+		lineNum, err := strconv.Atoi(parts[1])
 		if err != nil {
 			continue
 		}
@@ -106,10 +172,15 @@ func FindUsages(workspacePath, symbol string) ([]string, error) {
 				if !seenSigs[sigKey] {
 					seenSigs[sigKey] = true
 					signatures = append(signatures, sigKey)
+					sigsByFile[relPath]++
 				}
 				break
 			}
 		}
+	}
+
+	if len(signatures) > maxLines() {
+		return []string{usagesOverflow(sigsByFile, len(signatures))}, nil
 	}
 
 	return signatures, nil

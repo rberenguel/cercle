@@ -128,6 +128,67 @@ func main() {
 		}
 		fmt.Print(iface)
 
+	case "search-signature":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: cercle-lite search-signature <pattern>")
+			os.Exit(1)
+		}
+		out, err := search.SearchSignature(workspacePath, os.Args[2])
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Print(out)
+
+	case "largest-chunks":
+		n := 10
+		if len(os.Args) >= 3 {
+			if parsed, err := strconv.Atoi(os.Args[2]); err == nil && parsed > 0 {
+				n = parsed
+			}
+		}
+		results, err := search.LargestChunks(workspacePath, n)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		for _, r := range results {
+			fmt.Println(r)
+		}
+
+	case "callees":
+		if len(os.Args) < 4 {
+			fmt.Println("Usage: cercle-lite callees <filepath> <line_number>")
+			os.Exit(1)
+		}
+		lineNum, err := strconv.Atoi(os.Args[3])
+		if err != nil {
+			fmt.Println("Invalid line number")
+			os.Exit(1)
+		}
+		results, err := search.Callees(workspacePath, os.Args[2], lineNum)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		for _, r := range results {
+			fmt.Println(r)
+		}
+
+	case "dependents":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: cercle-lite dependents <filepath>")
+			os.Exit(1)
+		}
+		results, err := search.Dependents(workspacePath, os.Args[2])
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+		for _, r := range results {
+			fmt.Println(r)
+		}
+
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
 		printUsage()
@@ -142,8 +203,12 @@ func printUsage() {
 	fmt.Println("  index                                  Generate the interval map chunk index")
 	fmt.Println("  search-lexical <query>                 Full-text search returning chunk bodies")
 	fmt.Println("  search-fuzzy <signature>               Fuzzy search for a symbol signature")
-	fmt.Println("  file-skeleton <filepath>               View signatures and lines in a file")
+	fmt.Println("  file-skeleton <filepath|dir>           View signatures and lines in a file or directory")
 	fmt.Println("  read-chunk <filepath> <line_number>    Read the chunk block surrounding a line")
 	fmt.Println("  find-usages <symbol>                   Find usages of a symbol (returns signatures)")
 	fmt.Println("  extract-interface <filepath>           Extract imports and exported declarations")
+	fmt.Println("  search-signature <pattern>             Search chunk signatures by regex (no file I/O)")
+	fmt.Println("  largest-chunks [n]                     Show the n largest chunks by line count (default 10)")
+	fmt.Println("  callees <filepath> <line_number>       Show functions called by the chunk at this line")
+	fmt.Println("  dependents <filepath>                  Show files that import this file")
 }

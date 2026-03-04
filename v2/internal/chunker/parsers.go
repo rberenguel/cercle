@@ -334,3 +334,87 @@ func (p *htmlParser) finalize(filePath string, totalLines int) []models.Chunk {
 	}
 	return nil
 }
+
+// markdownParser chunks by ATX headings (# through ######).
+// Each heading starts a new chunk spanning until the next heading at any level.
+type markdownParser struct {
+	inChunk   bool
+	startLine int
+	sig       string
+}
+
+var mdHeadingRegex = regexp.MustCompile(`^(#{1,6})\s+(.+)`)
+
+func (p *markdownParser) processLine(filePath string, lineNum int, lineText string) []models.Chunk {
+	if !mdHeadingRegex.MatchString(lineText) {
+		return nil
+	}
+	var result []models.Chunk
+	if p.inChunk {
+		result = append(result, models.Chunk{
+			File:  filePath,
+			Start: p.startLine,
+			End:   lineNum - 1,
+			Sig:   p.sig,
+		})
+	}
+	p.inChunk = true
+	p.startLine = lineNum
+	p.sig = strings.TrimSpace(lineText)
+	return result
+}
+
+func (p *markdownParser) finalize(filePath string, totalLines int) []models.Chunk {
+	if p.inChunk {
+		return []models.Chunk{{
+			File:  filePath,
+			Start: p.startLine,
+			End:   totalLines,
+			Sig:   p.sig,
+		}}
+	}
+	return nil
+}
+
+// protoParser chunks message, service, and enum blocks in Protocol Buffer files.
+type protoParser struct {
+	inChunk    bool
+	startLine  int
+	braceCount int
+	sig        string
+}
+
+var protoBlockRegex = regexp.MustCompile(`^(?:message|service|enum)\s+\w+`)
+
+func (p *protoParser) processLine(filePath string, lineNum int, lineText string) []models.Chunk {
+	trimmed := strings.TrimSpace(lineText)
+
+	if !p.inChunk {
+		if protoBlockRegex.MatchString(trimmed) {
+			p.inChunk = true
+			p.startLine = lineNum
+			p.braceCount = 0
+			p.sig = trimmed
+		}
+	}
+
+	if p.inChunk {
+		p.braceCount += strings.Count(lineText, "{")
+		p.braceCount -= strings.Count(lineText, "}")
+
+		if p.braceCount == 0 && strings.Contains(lineText, "}") {
+			p.inChunk = false
+			return []models.Chunk{{
+				File:  filePath,
+				Start: p.startLine,
+				End:   lineNum,
+				Sig:   p.sig,
+			}}
+		}
+	}
+	return nil
+}
+
+func (p *protoParser) finalize(filePath string, totalLines int) []models.Chunk {
+	return nil
+}

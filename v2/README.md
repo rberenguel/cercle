@@ -28,15 +28,21 @@ During a search:
 
 ## Usage
 
-Agents can call the `cercle-lite` binary with various subcommands:
+Each command answers a distinct question about a codebase:
 
-- `index`: Generates the chunk maps in `~/.cercle/`.
-- `search-lexical <query>`: Full-text search returning complete function/class bodies.
-- `search-fuzzy <signature>`: pure-Go Levenshtein distance search against the index to find misspelled symbols.
-- `file-skeleton <filepath>`: Returns line numbers and signatures for a specific file.
-- `read-chunk <filepath> <line_number>`: Returns exactly the code block enclosing a line.
-- `find-usages <symbol>`: Finds usages and returns *only* the signatures of calling functions.
-- `extract-interface <filepath>`: Extracts imports and exported types/functions.
+| Question | Command |
+|---|---|
+| *What exists and where?* | `file-skeleton <path>` |
+| *What does this do?* | `read-chunk <file> <line>` |
+| *Where is X mentioned?* | `search-lexical <query>` |
+| *Who calls this?* | `find-usages <symbol>` |
+| *What does this expose?* | `extract-interface <file>` |
+| *What has this shape/signature?* | `search-signature <pattern>` |
+| *Where is the complexity?* | `largest-chunks [n]` |
+| *What does this call?* | `callees <file> <line>` |
+| *What imports this?* | `dependents <file>` |
+
+Full command reference: [`REFERENCE.md`](REFERENCE.md).
 
 ## Test with a specific codebase
 

@@ -31,9 +31,12 @@ var SupportedExtensions = map[string]bool{
 	".cxx":  true,
 	".h":    true,
 	".hpp":  true,
-	".css":  true,
-	".html": true,
-	".htm":  true,
+	".css":   true,
+	".html":  true,
+	".htm":   true,
+	".md":    true,
+	".mdx":   true,
+	".proto": true,
 }
 
 // GenerateIndex traverses the given directory using rg, parses the supported

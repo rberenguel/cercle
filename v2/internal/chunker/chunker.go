@@ -35,6 +35,10 @@ func ParseFile(filePath string) ([]models.Chunk, error) {
 		p = &cssParser{}
 	case ".html", ".htm":
 		p = &htmlParser{}
+	case ".md", ".mdx":
+		p = &markdownParser{}
+	case ".proto":
+		p = &protoParser{}
 	default:
 		// Unsupported extension
 		return nil, nil
