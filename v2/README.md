@@ -1,3 +1,6 @@
+> [!CAUTION]
+> This has moved to [garbell](https://github.com/rberenguel/garbell)
+
 # Cercle v2 (Diet Architecture)
 
 Cercle v2 is a purely local, daemonless, zero-dependency code indexing and search tool designed for LLM agents.

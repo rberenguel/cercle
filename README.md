@@ -13,6 +13,9 @@ A compiled Go daemon that indexes codebases and documents into a multi-tier sear
 
 > Written by a combination of human asking for stuff, Gemini designing stuff, Claude/Gemini writing stuff, Gemini evaluating stuff, Antigravity implementing v2, and the human playing the telephone game.
 
+> [!NOTE]
+> Superseded by the way simpler but as performant [garbell](https://github.com/rberenguel/garbell)
+
 ---
 
 <!-- vscode-markdown-toc -->
